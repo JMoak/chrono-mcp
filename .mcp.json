@@ -1,0 +1,9 @@
+{
+	"mcpServers": {
+		"chrono-mcp": {
+			"command": "node",
+			"args": ["dist/index.js"],
+			"env": {}
+		}
+	}
+}

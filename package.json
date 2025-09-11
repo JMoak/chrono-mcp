@@ -1,0 +1,36 @@
+{
+	"name": "chrono-mcp",
+	"version": "0.1.0",
+	"private": false,
+	"type": "module",
+	"description": "Lightweight TypeScript MCP server template (stdio transport)",
+	"bin": {
+		"chrono-mcp": "dist/index.js"
+	},
+	"main": "dist/index.js",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"clean": "rimraf dist",
+		"lint": "biome lint .",
+		"lint:fix": "biome check --write --unsafe .",
+		"inspector": "npx @modelcontextprotocol/inspector --config .mcp.json --profile chrono-mcp"
+	},
+	"engines": {
+		"node": ">=22.0.0"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.9.0",
+		"zod": "^4.1.5"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.3",
+		"@types/node": "^24.3.1",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.9.2"
+	}
+}
