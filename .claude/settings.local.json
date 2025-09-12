@@ -1,4 +1,11 @@
 {
-	"enabledMcpjsonServers": ["chrono-mcp"],
-	"enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "chrono-mcp"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__chrono-mcp__current_time"
+    ]
+  }
 }
