@@ -130,7 +130,7 @@ export const getTimeTool: Tool = {
 	},
 };
 
-export async function handleGetTime(args: any) {
+export async function handleGetTime(args: unknown) {
 	// Validate and parse arguments with Zod
 	const parseResult = GetTimeSchema.safeParse(args);
 
@@ -172,7 +172,7 @@ export async function handleGetTime(args: any) {
 		};
 	}
 
-	const result: any = {
+	const result: Record<string, unknown> = {
 		baseTime: baseTime.toISO(),
 	};
 
@@ -207,7 +207,7 @@ export async function handleGetTime(args: any) {
 	if (validatedArgs.comparisons && validatedArgs.comparisons.length > 0) {
 		result.comparisons = {};
 		for (const datetime of validatedArgs.comparisons) {
-			result.comparisons[datetime] = `TODO: comparison for ${datetime}`;
+			(result.comparisons as Record<string, string>)[datetime] = `TODO: comparison for ${datetime}`;
 		}
 	}
 
