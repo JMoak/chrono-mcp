@@ -198,16 +198,76 @@ export async function handleGetTime(args: unknown) {
 		}
 	}
 
-	// TODO: Add format conversions
-	if (validatedArgs.formats) {
-		// Will add format handling later
+	// Add format conversions for baseTime
+	if (validatedArgs.formats && validatedArgs.formats.length > 0) {
+		for (const format of validatedArgs.formats) {
+			const formatKey = `baseTime_${format}`;
+			let formattedValue: string;
+
+			try {
+				switch (format) {
+					case "iso":
+						formattedValue = baseTime.toISO() || "";
+						break;
+					case "rfc2822":
+						formattedValue = baseTime.toRFC2822() || "";
+						break;
+					case "sql":
+						formattedValue = baseTime.toSQL() || "";
+						break;
+					case "local":
+						formattedValue = baseTime.toLocaleString() || "";
+						break;
+					case "localeString":
+						formattedValue = validatedArgs.locale
+							? baseTime.setLocale(validatedArgs.locale).toLocaleString() || ""
+							: baseTime.toLocaleString() || "";
+						break;
+					case "short":
+						formattedValue = validatedArgs.locale
+							? baseTime
+									.setLocale(validatedArgs.locale)
+									.toLocaleString(DateTime.DATE_SHORT) || ""
+							: baseTime.toLocaleString(DateTime.DATE_SHORT) || "";
+						break;
+					case "medium":
+						formattedValue = validatedArgs.locale
+							? baseTime
+									.setLocale(validatedArgs.locale)
+									.toLocaleString(DateTime.DATE_MED) || ""
+							: baseTime.toLocaleString(DateTime.DATE_MED) || "";
+						break;
+					case "long":
+						formattedValue = validatedArgs.locale
+							? baseTime
+									.setLocale(validatedArgs.locale)
+									.toLocaleString(DateTime.DATE_FULL) || ""
+							: baseTime.toLocaleString(DateTime.DATE_FULL) || "";
+						break;
+					case "full":
+						formattedValue = validatedArgs.locale
+							? baseTime
+									.setLocale(validatedArgs.locale)
+									.toLocaleString(DateTime.DATETIME_FULL) || ""
+							: baseTime.toLocaleString(DateTime.DATETIME_FULL) || "";
+						break;
+					default:
+						formattedValue = baseTime.toISO() || "";
+				}
+				result[formatKey] = formattedValue;
+			} catch (error) {
+				result[formatKey] =
+					`Error formatting as ${format}: ${error instanceof Error ? error.message : "Unknown error"}`;
+			}
+		}
 	}
 
 	// TODO: Add comparisons
 	if (validatedArgs.comparisons && validatedArgs.comparisons.length > 0) {
 		result.comparisons = {};
 		for (const datetime of validatedArgs.comparisons) {
-			(result.comparisons as Record<string, string>)[datetime] = `TODO: comparison for ${datetime}`;
+			(result.comparisons as Record<string, string>)[datetime] =
+				`TODO: comparison for ${datetime}`;
 		}
 	}
 
