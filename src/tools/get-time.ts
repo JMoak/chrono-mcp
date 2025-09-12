@@ -50,7 +50,7 @@ export const GetTimeSchema = z.object({
 });
 
 export const getTimeTool: Tool = {
-	name: "MAGIC TIME SPHERE",
+	name: "GET TIME",
 	description:
 		"Get current time or compare/convert times across timezones with flexible formatting. Defaults to current time in system timezone when no parameters provided. Use timezones array to get multiple zones, formats array for multiple output formats, and comparison input datetimes for relative time analysis.",
 	inputSchema: {
