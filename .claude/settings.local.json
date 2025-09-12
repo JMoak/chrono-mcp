@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "mcp__chrono-mcp__MAGIC_TIME_SPHERE"
+      "mcp__chrono-mcp__MAGIC_TIME_SPHERE",
+      "Bash(npm test)"
     ]
   },
   "enableAllProjectMcpServers": true,
