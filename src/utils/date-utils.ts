@@ -60,6 +60,57 @@ export function getCurrentTime(timezone?: string): DateTime {
 }
 
 /**
+ * Parse a date/time string in a specific timezone
+ */
+export function parseDateTime(dateString: string, timezone?: string): DateTime {
+	// Try multiple parsing strategies
+	let dt: DateTime;
+
+	// First try ISO format
+	dt = DateTime.fromISO(dateString, { zone: timezone });
+	if (dt.isValid) return dt;
+
+	// Try RFC2822 format
+	dt = DateTime.fromRFC2822(dateString);
+	if (dt.isValid && timezone) {
+		return dt.setZone(timezone);
+	}
+	if (dt.isValid) return dt;
+
+	// Try HTTP format
+	dt = DateTime.fromHTTP(dateString);
+	if (dt.isValid && timezone) {
+		return dt.setZone(timezone);
+	}
+	if (dt.isValid) return dt;
+
+	// Try SQL format
+	dt = DateTime.fromSQL(dateString, { zone: timezone });
+	if (dt.isValid) return dt;
+
+	// Try common formats
+	const formats = [
+		"yyyy-MM-dd HH:mm:ss",
+		"yyyy-MM-dd HH:mm",
+		"yyyy-MM-dd",
+		"MM/dd/yyyy HH:mm:ss",
+		"MM/dd/yyyy HH:mm",
+		"MM/dd/yyyy",
+		"dd/MM/yyyy HH:mm:ss",
+		"dd/MM/yyyy HH:mm",
+		"dd/MM/yyyy",
+	];
+
+	for (const format of formats) {
+		dt = DateTime.fromFormat(dateString, format, { zone: timezone });
+		if (dt.isValid) return dt;
+	}
+
+	// If all else fails, throw an error
+	throw new Error(`Unable to parse datetime string: ${dateString}`);
+}
+
+/**
  * Validate if a string is a valid timezone
  */
 export function isValidTimezone(timezone: string): boolean {

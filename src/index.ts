@@ -9,7 +9,7 @@ import {
 	McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
-import { currentTimeTool, handleCurrentTime } from "./tools/current-time.js";
+import { getTimeTool, handleGetTime } from "./tools/get-time.js";
 
 const server = new Server(
 	{ name: "chrono-mcp", version: "0.1.0" },
@@ -19,13 +19,13 @@ const server = new Server(
 type ToolInput = z.infer<typeof ToolSchema.shape.inputSchema>;
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-	tools: [currentTimeTool],
+	tools: [getTimeTool],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
 	switch (request.params.name) {
-		case "current_time":
-			return await handleCurrentTime(request.params.arguments ?? {});
+		case getTimeTool.name:
+			return await handleGetTime(request.params.arguments ?? {});
 		default:
 			throw new McpError(
 				ErrorCode.MethodNotFound,
