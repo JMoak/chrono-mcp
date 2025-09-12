@@ -1,8 +1,12 @@
-import { z } from "zod";
 import type { ToolSchema } from "@modelcontextprotocol/sdk/types.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
-import { getCurrentTime, formatDateTime } from "../utils/date-utils.js";
-import { TimezoneSchema, DateTimeFormatSchema, LocaleSchema } from "../utils/validation.js";
+import { z } from "zod";
+import { formatDateTime, getCurrentTime } from "../utils/date-utils.js";
+import {
+	DateTimeFormatSchema,
+	LocaleSchema,
+	TimezoneSchema,
+} from "../utils/validation.js";
 
 export const CurrentTimeParamsSchema = z
 	.object({
@@ -16,7 +20,8 @@ type ToolInput = z.infer<typeof ToolSchema.shape.inputSchema>;
 
 export const currentTimeTool = {
 	name: "current_time",
-	description: "Get the current date and time in any timezone with various formatting options",
+	description:
+		"Get the current date and time in any timezone with various formatting options",
 	inputSchema: z.toJSONSchema(CurrentTimeParamsSchema) as ToolInput,
 };
 
@@ -25,7 +30,7 @@ export async function handleCurrentTime(params: unknown) {
 	if (!parsed.success) {
 		throw new McpError(
 			ErrorCode.InvalidParams,
-			`Invalid arguments for current_time: ${parsed.error.message}`
+			`Invalid arguments for current_time: ${parsed.error.message}`,
 		);
 	}
 
@@ -49,7 +54,7 @@ export async function handleCurrentTime(params: unknown) {
 	} catch (error) {
 		throw new McpError(
 			ErrorCode.InternalError,
-			`Failed to get current time: ${error instanceof Error ? error.message : "Unknown error"}`
+			`Failed to get current time: ${error instanceof Error ? error.message : "Unknown error"}`,
 		);
 	}
 }

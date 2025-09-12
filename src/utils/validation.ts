@@ -12,13 +12,13 @@ export const TimezoneSchema = z
 				return false;
 			}
 		},
-		{ message: "Invalid timezone identifier" }
+		{ message: "Invalid timezone identifier" },
 	);
 
 export const DateTimeFormatSchema = z
 	.enum([
 		"iso",
-		"rfc2822", 
+		"rfc2822",
 		"http",
 		"sql",
 		"local",
@@ -26,7 +26,7 @@ export const DateTimeFormatSchema = z
 		"short",
 		"medium",
 		"long",
-		"full"
+		"full",
 	])
 	.default("iso")
 	.describe("Output format for datetime");

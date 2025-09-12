@@ -6,7 +6,7 @@ import { DateTime } from "luxon";
 export const COMMON_TIMEZONES = [
 	"UTC",
 	"America/New_York",
-	"America/Chicago", 
+	"America/Chicago",
 	"America/Denver",
 	"America/Los_Angeles",
 	"Europe/London",
@@ -14,7 +14,7 @@ export const COMMON_TIMEZONES = [
 	"Europe/Berlin",
 	"Asia/Tokyo",
 	"Asia/Shanghai",
-	"Australia/Sydney"
+	"Australia/Sydney",
 ] as const;
 
 /**
@@ -23,7 +23,7 @@ export const COMMON_TIMEZONES = [
 export function formatDateTime(
 	dt: DateTime,
 	format: string,
-	locale?: string
+	locale?: string,
 ): string {
 	switch (format) {
 		case "iso":

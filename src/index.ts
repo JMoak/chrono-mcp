@@ -8,7 +8,7 @@ import {
 	ListToolsRequestSchema,
 	McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
+import type { z } from "zod";
 import { currentTimeTool, handleCurrentTime } from "./tools/current-time.js";
 
 const server = new Server(
