@@ -2,9 +2,9 @@
 
 A comprehensive Model Context Protocol (MCP) server providing advanced date, time, timezone, and calendar operations powered by Luxon. Perfect for AI agents and applications that need robust temporal data handling.
 
-[![NPM Version](https://img.shields.io/npm/v/chrono-mcp)](https://npmjs.com/package/chrono-mcp)
+[![NPM Version](https://img.shields.io/npm/v/@jmoak/chrono-mcp)](https://npmjs.com/package/@jmoak/chrono-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node Version](https://img.shields.io/node/v/chrono-mcp)](https://nodejs.org/)
+[![Node Version](https://img.shields.io/node/v/@jmoak/chrono-mcp)](https://nodejs.org/)
 
 ## Features
 
