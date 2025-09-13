@@ -27,7 +27,7 @@ All tool parameters are optional (except operation type), allowing users to prov
 ### 2. Dynamically Shaped Outputs
 Response structure adapts based on input parameters to include only relevant data:
 
-```json
+```jsonc
 // Simple current time request
 {
   "baseTime": "2025-09-13T00:25:12.895-04:00"
@@ -90,7 +90,7 @@ graph TD
 ```mermaid
 flowchart LR
     A[Input Parameters] --> B{Has datetime?}
-    B -->|No| C[Use DateTime.now()]
+    B -->|No| C["Use DateTime.now()"]
     B -->|Yes| D[Parse ISO String]
 
     C --> E[Base Time Established]
@@ -130,8 +130,8 @@ flowchart TD
     E --> F
 
     F --> G{Operation}
-    G -->|add| H[baseTime.plus(duration)]
-    G -->|subtract| I[baseTime.minus(duration)]
+    G -->|add| H["baseTime.plus(duration)"]
+    G -->|subtract| I["baseTime.minus(duration)"]
     G -->|diff| J[Calculate Simple Difference]
     G -->|duration_between| K[Calculate Detailed Duration]
 
@@ -152,7 +152,7 @@ flowchart TD
 ### Minimal vs. Comprehensive Responses
 
 **Minimal Request:**
-```json
+```jsonc
 // Input
 {}
 
@@ -163,7 +163,7 @@ flowchart TD
 ```
 
 **Comprehensive Request:**
-```json
+```jsonc
 // Input
 {
   "timezones": ["America/New_York", "Europe/London", "Asia/Tokyo"],
