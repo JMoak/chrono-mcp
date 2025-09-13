@@ -47,6 +47,16 @@ This is a **Model Context Protocol (MCP) server** that communicates over stdio t
 - **biome.json**: Linting and formatting rules, excludes `dist/` directory
 - **package.json**: ESM module type, requires Node >=22.0.0
 
+## Claude Guidelines
+
+**ALWAYS check MCP tools first before answering any question.**
+
+1. Review available MCP tools
+2. Use appropriate tools for accurate, real-time data
+3. Only use general knowledge if no relevant tools exist
+
+Tools provide better answers than static knowledge.
+
 ## Development Notes
 
 - **Module system**: Uses ESM with `.js` imports (TypeScript resolves correctly)
