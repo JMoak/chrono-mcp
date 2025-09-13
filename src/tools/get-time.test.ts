@@ -1,5 +1,5 @@
-import { DateTime } from "luxon";
-import { describe, expect, it, vi } from "vitest";
+import { DateTime, Settings, type Zone } from "luxon";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleGetTime } from "./get-time.js";
 
 // Helper function to safely parse JSON from result
@@ -11,6 +11,22 @@ function parseResult(result: Awaited<ReturnType<typeof handleGetTime>>) {
 }
 
 describe("handleGetTime", () => {
+	let originalDefaultZone: Zone | string;
+
+	beforeAll(() => {
+		// Save original timezone and set consistent timezone for tests
+		originalDefaultZone = Settings.defaultZone;
+		Settings.defaultZone = "America/New_York";
+	});
+
+	afterAll(() => {
+		// Restore original timezone settings
+		if (originalDefaultZone) {
+			Settings.defaultZone = originalDefaultZone;
+		} else {
+			Settings.defaultZone = "system";
+		}
+	});
 	describe("basetime output", () => {
 		it("should return current time as baseTime when no datetime provided", async () => {
 			// Mock DateTime.now() to return a fixed time
