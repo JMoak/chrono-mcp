@@ -102,8 +102,8 @@ jobs:
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "Publishing version: $NEW_VERSION"
 
-          # Publish to npm
-          npm publish
+          # Publish to npm as public package
+          npm publish --access public
 
           # Create and push git tag
           git add package.json
