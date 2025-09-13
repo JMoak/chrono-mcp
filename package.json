@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"private": false,
 	"type": "module",
-	"description": "Lightweight TypeScript MCP server template (stdio transport)",
+	"description": "A Model Context Protocol (MCP) server providing real-time date, time, and timezone tools with calculation capabilities",
 	"bin": {
 		"chrono-mcp": "dist/index.js"
 	},
@@ -13,6 +13,25 @@
 		"README.md",
 		"LICENSE"
 	],
+	"keywords": [
+		"mcp-server",
+		"model-context-protocol",
+		"time",
+		"timezone",
+		"date",
+		"datetime",
+		"calendar"
+	],
+	"author": "Jordan Moak",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/JMoak/chrono-mcp.git"
+	},
+	"homepage": "https://github.com/JMoak/chrono-mcp#readme",
+	"bugs": {
+		"url": "https://github.com/JMoak/chrono-mcp/issues"
+	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
 		"clean": "rimraf dist",
