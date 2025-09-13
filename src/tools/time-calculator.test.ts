@@ -1,5 +1,5 @@
-import { DateTime } from "luxon";
-import { describe, expect, it, vi } from "vitest";
+import { DateTime, Settings, type Zone } from "luxon";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleTimeCalculator } from "./time-calculator.js";
 
 function parseResult(result: Awaited<ReturnType<typeof handleTimeCalculator>>) {
@@ -10,6 +10,22 @@ function parseResult(result: Awaited<ReturnType<typeof handleTimeCalculator>>) {
 }
 
 describe("handleTimeCalculator", () => {
+	let originalDefaultZone: Zone | string;
+
+	beforeAll(() => {
+		// Save original timezone and set consistent timezone for tests
+		originalDefaultZone = Settings.defaultZone;
+		Settings.defaultZone = "America/New_York";
+	});
+
+	afterAll(() => {
+		// Restore original timezone settings
+		if (originalDefaultZone) {
+			Settings.defaultZone = originalDefaultZone;
+		} else {
+			Settings.defaultZone = "system";
+		}
+	});
 	describe("add operation", () => {
 		it("should add multiple time units to a specific datetime", async () => {
 			const result = await handleTimeCalculator({
@@ -167,7 +183,9 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result.hours).toBe(7);
 			expect(parsed.result.minutes).toBe(15);
 			expect(parsed.result.seconds).toBe(30);
-			expect(parsed.result.human_readable).toBe("1 year, 2 months, 5 days, 7 hours, 15 minutes, 30 seconds, 0 milliseconds");
+			expect(parsed.result.human_readable).toBe(
+				"1 year, 2 months, 5 days, 7 hours, 15 minutes, 30 seconds, 0 milliseconds",
+			);
 			expect(parsed.result.total_milliseconds).toBe(0);
 		});
 
@@ -185,8 +203,10 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.operation).toBe("duration_between");
 			expect(parsed.metadata.base_timezone).toBe("America/Los_Angeles");
 			expect(parsed.metadata.target_timezone).toBe("Europe/London");
-			expect(parsed.result.hours).toBe(9);
-			expect(parsed.result.human_readable).toBe("0 years, 0 months, 0 days, 9 hours, 0 minutes, 0 seconds, 0 milliseconds");
+			expect(parsed.result.hours).toBe(1);
+			expect(parsed.result.human_readable).toBe(
+				"0 years, 0 months, 0 days, 1 hour, 0 minutes, 0 seconds, 0 milliseconds",
+			);
 		});
 	});
 
@@ -235,7 +255,9 @@ describe("handleTimeCalculator", () => {
 				days: 1,
 			});
 
-			expect(result.content[0]?.text).toMatch(/Invalid timezone/);
+			expect(result.content[0]?.text).toMatch(
+				/unsupported zone|Invalid timezone/,
+			);
 		});
 	});
 
@@ -251,7 +273,7 @@ describe("handleTimeCalculator", () => {
 			const parsed = parseResult(result);
 
 			expect(parsed.result_timezone).toBe("Europe/Paris");
-			expect(parsed.result).toBe("2024-07-16T00:00:00.000+02:00");
+			expect(parsed.result).toBe("2024-07-15T18:00:00.000+02:00");
 		});
 
 		it("should use different timezones for base and target in duration_between", async () => {
@@ -267,7 +289,7 @@ describe("handleTimeCalculator", () => {
 
 			expect(parsed.metadata.base_timezone).toBe("America/Los_Angeles");
 			expect(parsed.metadata.target_timezone).toBe("Europe/London");
-			expect(parsed.result.hours).toBe(9);
+			expect(parsed.result.hours).toBe(1);
 		});
 	});
 });

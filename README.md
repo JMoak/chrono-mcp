@@ -64,7 +64,7 @@ Get current time or convert times across timezones with flexible formatting.
 - `includeOffsets` (boolean, optional): Include UTC offsets in output
 
 **Examples:**
-```json
+```jsonc
 // Get current time
 {}
 
@@ -101,7 +101,7 @@ Perform time arithmetic operations including duration calculations and date math
 - `years`, `months`, `days`, `hours`, `minutes`, `seconds` (optional): Duration values
 
 **Examples:**
-```json
+```jsonc
 // Add 5 days and 3 hours
 {
   "operation": "add",
@@ -131,7 +131,7 @@ Perform time arithmetic operations including duration calculations and date math
 
 Add to your MCP client configuration:
 
-```json
+```jsonc
 {
   "mcpServers": {
     "chrono-mcp": {

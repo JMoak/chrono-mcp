@@ -155,7 +155,22 @@ export async function handleTimeCalculator(args: unknown) {
 		// Determine base time
 		let baseTime: DateTime;
 		if (validatedArgs.base_time) {
-			baseTime = DateTime.fromISO(validatedArgs.base_time);
+			// If timezone is specified and base_time has no timezone info, parse it in that timezone
+			// Check for timezone indicators: Z, +, or - after the time part (not in date part)
+			const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(
+				validatedArgs.base_time,
+			);
+			if (validatedArgs.timezone && !hasTimezone) {
+				baseTime = DateTime.fromISO(validatedArgs.base_time, {
+					zone: validatedArgs.timezone,
+				});
+			} else {
+				baseTime = DateTime.fromISO(validatedArgs.base_time);
+				// Apply timezone conversion if specified and time has timezone info
+				if (validatedArgs.timezone) {
+					baseTime = baseTime.setZone(validatedArgs.timezone);
+				}
+			}
 			if (!baseTime.isValid) {
 				throw new Error(
 					`Invalid base_time format: ${validatedArgs.base_time} - ${baseTime.invalidReason}`,
@@ -163,13 +178,12 @@ export async function handleTimeCalculator(args: unknown) {
 			}
 		} else {
 			baseTime = DateTime.now();
-		}
-
-		// Apply timezone if specified
-		if (validatedArgs.timezone) {
-			baseTime = baseTime.setZone(validatedArgs.timezone);
-			if (!baseTime.isValid) {
-				throw new Error(`Invalid timezone: ${validatedArgs.timezone}`);
+			// Apply timezone if specified for current time
+			if (validatedArgs.timezone) {
+				baseTime = baseTime.setZone(validatedArgs.timezone);
+				if (!baseTime.isValid) {
+					throw new Error(`Invalid timezone: ${validatedArgs.timezone}`);
+				}
 			}
 		}
 
@@ -252,21 +266,31 @@ export async function handleTimeCalculator(args: unknown) {
 					);
 				}
 
-				let targetTime = DateTime.fromISO(validatedArgs.target_time);
+				const targetTimezone =
+					validatedArgs.target_time_timezone || validatedArgs.timezone;
+
+				let targetTime: DateTime;
+				// If timezone is specified and target_time has no timezone info, parse it in that timezone
+				// Check for timezone indicators: Z, +, or - after the time part (not in date part)
+				const hasTargetTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(
+					validatedArgs.target_time,
+				);
+				if (targetTimezone && !hasTargetTimezone) {
+					targetTime = DateTime.fromISO(validatedArgs.target_time, {
+						zone: targetTimezone,
+					});
+				} else {
+					targetTime = DateTime.fromISO(validatedArgs.target_time);
+					// Apply timezone conversion if specified and time has timezone info
+					if (targetTimezone) {
+						targetTime = targetTime.setZone(targetTimezone);
+					}
+				}
+
 				if (!targetTime.isValid) {
 					throw new Error(
 						`Invalid target_time format: ${validatedArgs.target_time} - ${targetTime.invalidReason}`,
 					);
-				}
-
-				// Apply timezone to target - use target_time_timezone if provided, otherwise use base timezone
-				const targetTimezone =
-					validatedArgs.target_time_timezone || validatedArgs.timezone;
-				if (targetTimezone) {
-					targetTime = targetTime.setZone(targetTimezone);
-					if (!targetTime.isValid) {
-						throw new Error(`Invalid target_time_timezone: ${targetTimezone}`);
-					}
 				}
 
 				const diff = targetTime.diff(baseTime, [
