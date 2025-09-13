@@ -19,13 +19,13 @@ A comprehensive Model Context Protocol (MCP) server providing advanced date, tim
 ## Installation
 
 ```bash
-npm install chrono-mcp
+npm install @jmoak/chrono-mcp
 ```
 
 Or run directly with npx:
 
 ```bash
-npx chrono-mcp
+npx @jmoak/chrono-mcp
 ```
 
 ## Quick Start
@@ -47,7 +47,7 @@ The server communicates over stdio following MCP conventions:
 ```bash
 node dist/index.js
 # or
-npx chrono-mcp
+npx @jmoak/chrono-mcp
 ```
 
 ## Available Tools
