@@ -8,6 +8,10 @@ import {
 	McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { getTimeTool, handleGetTime } from "./tools/get-time.js";
+import {
+	handleTimeCalculator,
+	timeCalculatorTool,
+} from "./tools/time-calculator.js";
 
 const server = new Server(
 	{ name: "chrono-mcp", version: "0.1.0" },
@@ -15,13 +19,15 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-	tools: [getTimeTool],
+	tools: [getTimeTool, timeCalculatorTool],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
 	switch (request.params.name) {
 		case getTimeTool.name:
 			return await handleGetTime(request.params.arguments ?? {});
+		case timeCalculatorTool.name:
+			return await handleTimeCalculator(request.params.arguments ?? {});
 		default:
 			throw new McpError(
 				ErrorCode.MethodNotFound,

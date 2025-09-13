@@ -41,18 +41,12 @@ export const GetTimeSchema = z.object({
 		.boolean()
 		.default(false)
 		.describe("Include UTC offsets (+09:00, -04:00)"),
-	comparisons: z
-		.array(z.string())
-		.optional()
-		.describe(
-			"List of ISO datetime strings to compare with the base time (e.g., ['2024-12-25T10:00:00', '2024-12-26T15:30:00'])",
-		),
 });
 
 export const getTimeTool: Tool = {
 	name: "GET TIME",
 	description:
-		"Get current time or compare/convert times across timezones with flexible formatting. Defaults to current time in system timezone when no parameters provided. Use timezones array to get multiple zones, formats array for multiple output formats, and comparison input datetimes for relative time analysis.",
+		"Get current time or convert times across timezones with flexible formatting. Defaults to current time in system timezone when no parameters provided. Use timezones array to get multiple zones, formats array for multiple output formats.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -96,12 +90,6 @@ export const getTimeTool: Tool = {
 				default: false,
 				description: "Include UTC offsets like +09:00, -04:00 in output",
 			},
-			comparisons: {
-				type: "array",
-				items: { type: "string" },
-				description:
-					"List of ISO datetime strings to compare with the base time. Examples: ['2024-12-25T10:00:00', '2024-12-26T15:30:00']",
-			},
 		},
 		additionalProperties: false,
 		examples: [
@@ -116,13 +104,11 @@ export const getTimeTool: Tool = {
 				},
 			},
 			{
-				description:
-					"Convert specific time with multiple formats and compare other datetimes",
+				description: "Convert specific time with multiple formats",
 				value: {
 					datetime: "2024-12-25T15:00:00",
 					timezones: ["America/Los_Angeles", "Asia/Tokyo"],
 					formats: ["iso", "localeString"],
-					comparisons: ["2024-12-25T10:00:00", "2024-12-26T08:00:00"],
 					includeOffsets: true,
 				},
 			},
@@ -259,15 +245,6 @@ export async function handleGetTime(args: unknown) {
 				result[formatKey] =
 					`Error formatting as ${format}: ${error instanceof Error ? error.message : "Unknown error"}`;
 			}
-		}
-	}
-
-	// TODO: Add comparisons
-	if (validatedArgs.comparisons && validatedArgs.comparisons.length > 0) {
-		result.comparisons = {};
-		for (const datetime of validatedArgs.comparisons) {
-			(result.comparisons as Record<string, string>)[datetime] =
-				`TODO: comparison for ${datetime}`;
 		}
 	}
 
