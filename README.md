@@ -190,6 +190,10 @@ Supports all IANA timezone identifiers including:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## Acknowledgments
+
+This project is powered by [Luxon](https://github.com/moment/luxon), the excellent DateTime library that provides robust timezone handling and date arithmetic. We're grateful to the Luxon team for creating such a reliable foundation for temporal operations.
+
 ## License
 
 MIT License - see the [LICENSE](LICENSE) file for details.
