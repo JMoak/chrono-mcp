@@ -126,6 +126,64 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result_timezone).toBe("America/New_York");
 			expect(parsed.result).toBe("2024-05-10T14:00:00.000-04:00");
 		});
+
+		it("should add time to multiple base times (bulk operation)", async () => {
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: ["2024-01-01T10:00:00Z", "2024-02-15T14:30:00Z", "2024-03-20T08:45:00Z"],
+				days: 5,
+				hours: 3,
+				minutes: 30,
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.operation).toBe("add");
+			expect(parsed.input.base_time).toEqual([
+				"2024-01-01T05:00:00.000-05:00",
+				"2024-02-15T09:30:00.000-05:00",
+				"2024-03-20T04:45:00.000-04:00"
+			]);
+			expect(parsed.input.duration).toEqual({
+				days: 5,
+				hours: 3,
+				minutes: 30,
+			});
+			expect(parsed.result.count).toBe(3);
+			expect(parsed.result.results).toEqual([
+				"2024-01-06T08:30:00.000-05:00",
+				"2024-02-20T13:00:00.000-05:00",
+				"2024-03-25T08:15:00.000-04:00"
+			]);
+		});
+
+		it("should subtract time from multiple base times (bulk operation)", async () => {
+			const result = await handleTimeCalculator({
+				operation: "subtract",
+				base_time: ["2024-06-15T12:00:00Z", "2024-07-20T16:30:00Z"],
+				months: 2,
+				days: 10,
+				hours: 4,
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.operation).toBe("subtract");
+			expect(parsed.input.base_time).toEqual([
+				"2024-06-15T08:00:00.000-04:00",
+				"2024-07-20T12:30:00.000-04:00"
+			]);
+			expect(parsed.input.duration).toEqual({
+				months: 2,
+				days: 10,
+				hours: 4,
+			});
+			expect(parsed.result.count).toBe(2);
+			expect(parsed.result.results).toEqual([
+				"2024-04-05T04:00:00.000-04:00",
+				"2024-05-10T08:30:00.000-04:00"
+			]);
+		});
 	});
 
 	describe("diff operation", () => {
@@ -133,14 +191,14 @@ describe("handleTimeCalculator", () => {
 			const result = await handleTimeCalculator({
 				operation: "diff",
 				base_time: "2024-01-01T06:00:00Z",
-				target_time: "2024-01-08T18:30:45Z",
+				compare_time: "2024-01-08T18:30:45Z",
 			});
 
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("diff");
 			expect(parsed.input.base_time).toBe("2024-01-01T01:00:00.000-05:00");
-			expect(parsed.input.target_time).toBe("2024-01-08T13:30:45.000-05:00");
+			expect(parsed.input.compare_time).toBe("2024-01-08T13:30:45.000-05:00");
 			expect(parsed.result.milliseconds).toBe(0);
 			expect(parsed.result.seconds).toBe(0);
 			expect(parsed.result.minutes).toBe(0);
@@ -152,7 +210,7 @@ describe("handleTimeCalculator", () => {
 			const result = await handleTimeCalculator({
 				operation: "diff",
 				base_time: "2024-12-25T20:00:00Z",
-				target_time: "2024-12-20T15:00:00Z",
+				compare_time: "2024-12-20T15:00:00Z",
 			});
 
 			const parsed = parseResult(result);
@@ -169,14 +227,14 @@ describe("handleTimeCalculator", () => {
 			const result = await handleTimeCalculator({
 				operation: "duration_between",
 				base_time: "2024-01-15T08:30:00Z",
-				target_time: "2025-03-20T14:45:30Z",
+				compare_time: "2025-03-20T14:45:30Z",
 			});
 
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("duration_between");
 			expect(parsed.input.base_time).toBe("2024-01-15T03:30:00.000-05:00");
-			expect(parsed.input.target_time).toBe("2025-03-20T10:45:30.000-04:00");
+			expect(parsed.input.compare_time).toBe("2025-03-20T10:45:30.000-04:00");
 			expect(parsed.result.years).toBe(1);
 			expect(parsed.result.months).toBe(2);
 			expect(parsed.result.days).toBe(5);
@@ -194,15 +252,15 @@ describe("handleTimeCalculator", () => {
 				operation: "duration_between",
 				base_time: "2024-01-01T12:00:00",
 				timezone: "America/Los_Angeles",
-				target_time: "2024-01-01T21:00:00",
-				target_time_timezone: "Europe/London",
+				compare_time: "2024-01-01T21:00:00",
+				compare_time_timezone: "Europe/London",
 			});
 
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("duration_between");
 			expect(parsed.metadata.base_timezone).toBe("America/Los_Angeles");
-			expect(parsed.metadata.target_timezone).toBe("Europe/London");
+			expect(parsed.metadata.compare_timezone).toBe("Europe/London");
 			expect(parsed.result.hours).toBe(1);
 			expect(parsed.result.human_readable).toBe(
 				"0 years, 0 months, 0 days, 1 hour, 0 minutes, 0 seconds, 0 milliseconds",
@@ -228,13 +286,13 @@ describe("handleTimeCalculator", () => {
 			expect(result.content[0]?.text).toMatch(/No duration specified/);
 		});
 
-		it("should handle missing target_time for diff operation", async () => {
+		it("should handle missing compare_time for diff operation", async () => {
 			const result = await handleTimeCalculator({
 				operation: "diff",
 				base_time: "2024-01-01T00:00:00Z",
 			});
 
-			expect(result.content[0]?.text).toMatch(/target_time is required/);
+			expect(result.content[0]?.text).toMatch(/compare_time is required/);
 		});
 
 		it("should handle invalid datetime format", async () => {
@@ -276,19 +334,19 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result).toBe("2024-07-15T18:00:00.000+02:00");
 		});
 
-		it("should use different timezones for base and target in duration_between", async () => {
+		it("should use different timezones for base and compare in duration_between", async () => {
 			const result = await handleTimeCalculator({
 				operation: "duration_between",
 				base_time: "2024-01-01T12:00:00",
 				timezone: "America/Los_Angeles",
-				target_time: "2024-01-01T21:00:00",
-				target_time_timezone: "Europe/London",
+				compare_time: "2024-01-01T21:00:00",
+				compare_time_timezone: "Europe/London",
 			});
 
 			const parsed = parseResult(result);
 
 			expect(parsed.metadata.base_timezone).toBe("America/Los_Angeles");
-			expect(parsed.metadata.target_timezone).toBe("Europe/London");
+			expect(parsed.metadata.compare_timezone).toBe("Europe/London");
 			expect(parsed.result.hours).toBe(1);
 		});
 	});

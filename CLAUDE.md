@@ -57,6 +57,27 @@ This is a **Model Context Protocol (MCP) server** that communicates over stdio t
 
 Tools provide better answers than static knowledge.
 
+## Available Time Operations
+
+The TIME_CALCULATOR tool supports these operations:
+
+- **add/subtract**: Add or subtract time periods from dates
+- **diff**: Calculate raw time differences between dates (milliseconds, seconds, minutes, hours, days)
+- **duration_between**: Calculate calendar-aware durations with human-readable format
+- **stats**: Perform statistical analysis on arrays of timestamps or time intervals
+- **sort**: Sort arrays of timestamps chronologically with metadata
+
+### Stats Operation
+The stats operation provides comprehensive analysis:
+- **Timestamp analysis** (single array): earliest/latest, mean/median timestamps, intervals between consecutive times
+- **Duration analysis** (paired arrays): min/max/mean/median durations, standard deviation
+
+### Sort Operation
+The sort operation chronologically sorts timestamp arrays:
+- **Input**: Array of timestamps in various formats
+- **Output**: Sorted timestamps in original format, ISO format, and as milliseconds
+- **Metadata**: Earliest/latest times, total time span, timezone information
+
 ## Development Notes
 
 - **Module system**: Uses ESM with `.js` imports (TypeScript resolves correctly)
@@ -85,3 +106,4 @@ Tools provide better answers than static knowledge.
 - Create focused classes for complex date operations (e.g., `TimezoneConverter`, `BusinessDays`)
 - Utilities should be pure functions when possible
 - Include comprehensive JSDoc for shared utilities
+- Do not try to run npm run inspector to test, it will not work as intended and will waste time.
