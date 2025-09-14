@@ -6,7 +6,6 @@ const MAX_OPERATIONS = 10000;
 
 interface OperationPlan {
 	interaction_mode: string;
-	operation_count: number;
 	base_times: string[];
 	compare_times?: string[];
 }
@@ -68,7 +67,6 @@ function planOperations(
 
 	return {
 		interaction_mode: actualMode,
-		operation_count: operationCount,
 		base_times: finalBaseTimes,
 		compare_times: finalCompareTimes,
 	};
@@ -88,7 +86,10 @@ function safelyParseTimeArray(times: string | string[] | undefined): string[] {
 	if (typeof times === "string" && times.trim().startsWith("[")) {
 		try {
 			const parsed = JSON.parse(times);
-			if (Array.isArray(parsed) && parsed.every(item => typeof item === "string")) {
+			if (
+				Array.isArray(parsed) &&
+				parsed.every((item) => typeof item === "string")
+			) {
 				return parsed;
 			}
 		} catch {
@@ -551,9 +552,7 @@ export async function handleTimeCalculator(args: unknown) {
 			result_timezone?: string;
 			metadata: {
 				calculation_time: string;
-				base_timezone: string;
-				compare_timezone: string;
-				operation_count: number;
+				calculation_timezone: string;
 			};
 		}
 
@@ -569,15 +568,27 @@ export async function handleTimeCalculator(args: unknown) {
 			result: null,
 			metadata: {
 				calculation_time: "",
-				base_timezone: "",
-				compare_timezone: "",
-				operation_count: plan.operation_count,
+				calculation_timezone: "",
 			},
 		};
 
 		switch (validatedArgs.operation) {
 			case "add":
 			case "subtract": {
+				// Calculate operation count for add/subtract: sum of both array lengths
+				let operationCount = baseTimes.length;
+				if (validatedArgs.compare_time) {
+					const compareTimes = safelyParseTimeArray(validatedArgs.compare_time);
+					operationCount += compareTimes.length;
+				}
+
+				// Enforce maximum operations
+				if (operationCount > MAX_OPERATIONS) {
+					throw new Error(
+						`Operation count (${operationCount}) exceeds maximum allowed (${MAX_OPERATIONS}) for ${validatedArgs.operation} operation`,
+					);
+				}
+
 				// Build duration object from provided values
 				const duration: DurationObject = {};
 				if (validatedArgs.years !== undefined)
@@ -661,7 +672,9 @@ export async function handleTimeCalculator(args: unknown) {
 					validatedArgs.compare_time_timezone || validatedArgs.timezone;
 
 				// For now, handle single compare_time (TODO: add array processing)
-				const compareTimesArray = safelyParseTimeArray(validatedArgs.compare_time);
+				const compareTimesArray = safelyParseTimeArray(
+					validatedArgs.compare_time,
+				);
 				const compareTimeStr = compareTimesArray[0] || "";
 
 				if (!compareTimeStr) {
@@ -1048,12 +1061,7 @@ export async function handleTimeCalculator(args: unknown) {
 
 		result.metadata = {
 			calculation_time: DateTime.now().toISO() || "",
-			base_timezone: validatedArgs.timezone || "system",
-			compare_timezone:
-				validatedArgs.compare_time_timezone ||
-				validatedArgs.timezone ||
-				"system",
-			operation_count: plan.operation_count,
+			calculation_timezone: DateTime.now().zoneName || "system",
 		};
 
 		return {

@@ -130,7 +130,11 @@ describe("handleTimeCalculator", () => {
 		it("should add time to multiple base times (bulk operation)", async () => {
 			const result = await handleTimeCalculator({
 				operation: "add",
-				base_time: ["2024-01-01T10:00:00Z", "2024-02-15T14:30:00Z", "2024-03-20T08:45:00Z"],
+				base_time: [
+					"2024-01-01T10:00:00Z",
+					"2024-02-15T14:30:00Z",
+					"2024-03-20T08:45:00Z",
+				],
 				days: 5,
 				hours: 3,
 				minutes: 30,
@@ -142,7 +146,7 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.input.base_time).toEqual([
 				"2024-01-01T05:00:00.000-05:00",
 				"2024-02-15T09:30:00.000-05:00",
-				"2024-03-20T04:45:00.000-04:00"
+				"2024-03-20T04:45:00.000-04:00",
 			]);
 			expect(parsed.input.duration).toEqual({
 				days: 5,
@@ -153,7 +157,7 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result.results).toEqual([
 				"2024-01-06T08:30:00.000-05:00",
 				"2024-02-20T13:00:00.000-05:00",
-				"2024-03-25T08:15:00.000-04:00"
+				"2024-03-25T08:15:00.000-04:00",
 			]);
 		});
 
@@ -171,7 +175,7 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.operation).toBe("subtract");
 			expect(parsed.input.base_time).toEqual([
 				"2024-06-15T08:00:00.000-04:00",
-				"2024-07-20T12:30:00.000-04:00"
+				"2024-07-20T12:30:00.000-04:00",
 			]);
 			expect(parsed.input.duration).toEqual({
 				months: 2,
@@ -181,7 +185,7 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result.count).toBe(2);
 			expect(parsed.result.results).toEqual([
 				"2024-04-05T04:00:00.000-04:00",
-				"2024-05-10T08:30:00.000-04:00"
+				"2024-05-10T08:30:00.000-04:00",
 			]);
 		});
 	});
@@ -259,8 +263,7 @@ describe("handleTimeCalculator", () => {
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("duration_between");
-			expect(parsed.metadata.base_timezone).toBe("America/Los_Angeles");
-			expect(parsed.metadata.compare_timezone).toBe("Europe/London");
+			expect(parsed.metadata.calculation_timezone).toBeDefined();
 			expect(parsed.result.hours).toBe(1);
 			expect(parsed.result.human_readable).toBe(
 				"0 years, 0 months, 0 days, 1 hour, 0 minutes, 0 seconds, 0 milliseconds",
@@ -319,6 +322,122 @@ describe("handleTimeCalculator", () => {
 		});
 	});
 
+	describe("operation count limits", () => {
+		it("should flag add operation when base_time array exceeds maximum operations", async () => {
+			// Create an array larger than MAX_OPERATIONS (10000)
+			const largeTimes = Array(10001).fill("2024-01-01T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: largeTimes,
+				days: 1,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10001\) exceeds maximum allowed \(10000\) for interaction mode 'many_to_single'/,
+			);
+		});
+
+		it("should flag subtract operation when base_time array exceeds maximum operations", async () => {
+			// Create an array larger than MAX_OPERATIONS (10000)
+			const largeTimes = Array(10001).fill("2024-01-01T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "subtract",
+				base_time: largeTimes,
+				days: 1,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10001\) exceeds maximum allowed \(10000\) for interaction mode 'many_to_single'/,
+			);
+		});
+
+		it("should flag add operation when compare_time array exceeds maximum operations", async () => {
+			// Create an array larger than MAX_OPERATIONS (10000)
+			const largeTimes = Array(10001).fill("2024-01-01T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: "2024-01-01T00:00:00Z",
+				compare_time: largeTimes,
+				days: 1,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10001\) exceeds maximum allowed \(10000\) for interaction mode 'single_to_many'/,
+			);
+		});
+
+		it("should flag subtract operation when combined arrays exceed maximum operations", async () => {
+			// Create arrays that when combined exceed MAX_OPERATIONS (10000)
+			const baseTimes = Array(5001).fill("2024-01-01T00:00:00Z");
+			const compareTimes = Array(5001).fill("2024-01-02T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "subtract",
+				base_time: baseTimes,
+				compare_time: compareTimes,
+				days: 1,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10002\) exceeds maximum allowed \(10000\) for subtract operation/,
+			);
+		});
+
+		it("should allow add operation when operation count is exactly at the limit", async () => {
+			// Create an array exactly at MAX_OPERATIONS (10000)
+			const maxTimes = Array(10000).fill("2024-01-01T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: maxTimes,
+				days: 1,
+			});
+
+			const parsed = parseResult(result);
+			expect(parsed.operation).toBe("add");
+			expect(parsed.result.count).toBe(10000);
+		});
+
+		it("should flag add operation when add/subtract specific operation count exceeds limit", async () => {
+			// Test the add/subtract specific operation count check (lines 578-590)
+			// Use arrays that together exceed the limit but individually don't trigger planOperations
+			const baseTimes = Array(5001).fill("2024-01-01T00:00:00Z");
+			const compareTimes = Array(5002).fill("2024-01-02T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: baseTimes,
+				compare_time: compareTimes,
+				days: 1,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10003\) exceeds maximum allowed \(10000\) for add operation/,
+			);
+		});
+
+		it("should flag subtract operation when add/subtract specific operation count exceeds limit", async () => {
+			// Test the add/subtract specific operation count check (lines 578-590)
+			// Use arrays that together exceed the limit but individually don't trigger planOperations
+			const baseTimes = Array(5001).fill("2024-01-01T00:00:00Z");
+			const compareTimes = Array(5002).fill("2024-01-02T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "subtract",
+				base_time: baseTimes,
+				compare_time: compareTimes,
+				days: 1,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10003\) exceeds maximum allowed \(10000\) for subtract operation/,
+			);
+		});
+	});
+
 	describe("timezone handling", () => {
 		it("should respect timezone for add operation", async () => {
 			const result = await handleTimeCalculator({
@@ -345,8 +464,7 @@ describe("handleTimeCalculator", () => {
 
 			const parsed = parseResult(result);
 
-			expect(parsed.metadata.base_timezone).toBe("America/Los_Angeles");
-			expect(parsed.metadata.compare_timezone).toBe("Europe/London");
+			expect(parsed.metadata.calculation_timezone).toBeDefined();
 			expect(parsed.result.hours).toBe(1);
 		});
 	});
