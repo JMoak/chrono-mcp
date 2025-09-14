@@ -203,11 +203,22 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.operation).toBe("diff");
 			expect(parsed.input.base_time).toBe("2024-01-01T01:00:00.000-05:00");
 			expect(parsed.input.compare_time).toBe("2024-01-08T13:30:45.000-05:00");
-			expect(parsed.result.milliseconds).toBe(0);
-			expect(parsed.result.seconds).toBe(0);
-			expect(parsed.result.minutes).toBe(0);
-			expect(parsed.result.hours).toBe(0);
-			expect(parsed.result.days).toBe(0);
+
+			// 7 days, 12 hours, 30 minutes, 45 seconds = 671445000 milliseconds
+			const expectedMs =
+				7 * 24 * 60 * 60 * 1000 +
+				12 * 60 * 60 * 1000 +
+				30 * 60 * 1000 +
+				45 * 1000;
+			expect(parsed.result.milliseconds).toBe(expectedMs);
+			expect(parsed.result.seconds).toBe(Math.floor(expectedMs / 1000));
+			expect(parsed.result.minutes).toBe(Math.floor(expectedMs / (1000 * 60)));
+			expect(parsed.result.hours).toBe(
+				Math.floor(expectedMs / (1000 * 60 * 60)),
+			);
+			expect(parsed.result.days).toBe(
+				Math.floor(expectedMs / (1000 * 60 * 60 * 24)),
+			);
 		});
 
 		it("should handle negative differences when target is before base", async () => {
@@ -220,9 +231,10 @@ describe("handleTimeCalculator", () => {
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("diff");
-			expect(parsed.result.days).toBe(0);
-			expect(parsed.result.hours).toBe(0);
-			expect(parsed.result.milliseconds).toBe(0);
+			// This should be a negative difference
+			expect(parsed.result.days).toBeLessThan(0);
+			expect(parsed.result.hours).toBeLessThan(0);
+			expect(parsed.result.milliseconds).toBeLessThan(0);
 		});
 	});
 
@@ -248,7 +260,7 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result.human_readable).toBe(
 				"1 year, 2 months, 5 days, 7 hours, 15 minutes, 30 seconds, 0 milliseconds",
 			);
-			expect(parsed.result.total_milliseconds).toBe(0);
+			expect(parsed.result.total_milliseconds).toBeGreaterThan(0);
 		});
 
 		it("should handle multi-timezone duration calculations", async () => {

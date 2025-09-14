@@ -671,75 +671,117 @@ export async function handleTimeCalculator(args: unknown) {
 				const compareTimezone =
 					validatedArgs.compare_time_timezone || validatedArgs.timezone;
 
-				// For now, handle single compare_time (TODO: add array processing)
-				const compareTimesArray = safelyParseTimeArray(
+				// Parse compare times using utility function
+				const compareTimes = parseTimestamps(
 					validatedArgs.compare_time,
+					compareTimezone,
+					"compare_time",
 				);
-				const compareTimeStr = compareTimesArray[0] || "";
 
-				if (!compareTimeStr) {
-					throw new Error(
-						"compare_time is required when provided as an array but array is empty",
-					);
-				}
+				// Update input to show the compare times properly
+				result.input.compare_time =
+					compareTimes.length === 1
+						? compareTimes[0]?.toISO() || ""
+						: compareTimes.map((dt) => dt.toISO() || "");
 
-				let compareTime: DateTime;
-				// If timezone is specified and compare_time has no timezone info, parse it in that timezone
-				// Check for timezone indicators: Z, +, or - after the time part (not in date part)
-				const hasCompareTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(
-					compareTimeStr,
-				);
-				if (compareTimezone && !hasCompareTimezone) {
-					compareTime = DateTime.fromISO(compareTimeStr, {
-						zone: compareTimezone,
-					});
-				} else {
-					compareTime = DateTime.fromISO(compareTimeStr);
-					// Apply timezone conversion if specified and time has timezone info
-					if (compareTimezone) {
-						compareTime = compareTime.setZone(compareTimezone);
+				// Handle different interaction modes for batch operations
+				const diffOperation = (baseTime: DateTime, compareTime: DateTime) => {
+					const diff = compareTime.diff(baseTime, [
+						"years",
+						"months",
+						"days",
+						"hours",
+						"minutes",
+						"seconds",
+						"milliseconds",
+					]);
+
+					const totalMs = compareTime.diff(baseTime).as("milliseconds");
+
+					if (validatedArgs.operation === "diff") {
+						// Simple diff in various units
+						return {
+							milliseconds: totalMs,
+							seconds: Math.floor(totalMs / 1000),
+							minutes: Math.floor(totalMs / (1000 * 60)),
+							hours: Math.floor(totalMs / (1000 * 60 * 60)),
+							days: Math.floor(totalMs / (1000 * 60 * 60 * 24)),
+						};
+					} else {
+						// Detailed duration breakdown
+						return {
+							years: Math.floor(diff.years),
+							months: Math.floor(diff.months),
+							days: Math.floor(diff.days),
+							hours: Math.floor(diff.hours),
+							minutes: Math.floor(diff.minutes),
+							seconds: Math.floor(diff.seconds),
+							milliseconds: diff.milliseconds,
+							total_milliseconds: totalMs,
+							human_readable: diff.toHuman(),
+						};
 					}
+				};
+
+				// Execute based on interaction mode
+				let diffResults: unknown[] = [];
+
+				switch (plan.interaction_mode) {
+					case "single_to_single":
+						if (baseTimes[0] && compareTimes[0]) {
+							diffResults = [diffOperation(baseTimes[0], compareTimes[0])];
+						}
+						break;
+					case "single_to_many":
+						if (baseTimes[0]) {
+							diffResults = _executeSingleToMany(
+								baseTimes,
+								compareTimes,
+								diffOperation,
+							);
+						}
+						break;
+					case "many_to_single":
+						if (compareTimes[0]) {
+							diffResults = _executeManyToSingle(
+								baseTimes,
+								compareTimes,
+								diffOperation,
+							);
+						}
+						break;
+					case "pairwise":
+						diffResults = _executePairwise(
+							baseTimes,
+							compareTimes,
+							diffOperation,
+						);
+						break;
+					case "cross_product":
+						diffResults = _executeCrossProduct(
+							baseTimes,
+							compareTimes,
+							diffOperation,
+						);
+						break;
+					default:
+						// Fallback to pairwise
+						diffResults = _executePairwise(
+							baseTimes,
+							compareTimes,
+							diffOperation,
+						);
+						break;
 				}
 
-				if (!compareTime.isValid) {
-					throw new Error(
-						`Invalid compare_time format: ${compareTimeStr} - ${compareTime.invalidReason}`,
-					);
-				}
-
-				const diff = compareTime.diff(baseTimes[0] || DateTime.now(), [
-					"years",
-					"months",
-					"days",
-					"hours",
-					"minutes",
-					"seconds",
-					"milliseconds",
-				]);
-
-				result.input.compare_time = compareTime.toISO() || "";
-
-				if (validatedArgs.operation === "diff") {
-					// Simple diff in milliseconds
-					result.result = {
-						milliseconds: diff.milliseconds,
-						seconds: Math.floor(diff.milliseconds / 1000),
-						minutes: Math.floor(diff.milliseconds / (1000 * 60)),
-						hours: Math.floor(diff.milliseconds / (1000 * 60 * 60)),
-						days: Math.floor(diff.milliseconds / (1000 * 60 * 60 * 24)),
-					};
+				// Format result based on count
+				if (diffResults.length === 1) {
+					result.result = diffResults[0];
 				} else {
-					// Detailed duration breakdown
 					result.result = {
-						years: Math.floor(diff.years),
-						months: Math.floor(diff.months),
-						days: Math.floor(diff.days),
-						hours: Math.floor(diff.hours),
-						minutes: Math.floor(diff.minutes),
-						seconds: Math.floor(diff.seconds),
-						milliseconds: diff.milliseconds,
-						total_milliseconds: diff.milliseconds,
-						human_readable: diff.toHuman(),
+						count: diffResults.length,
+						results: diffResults,
+						interaction_mode: plan.interaction_mode,
 					};
 				}
 				break;
