@@ -480,4 +480,165 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result.hours).toBe(1);
 		});
 	});
+
+	describe("interaction modes", () => {
+		describe("single_to_many mode", () => {
+			it("should calculate diff from one base time to multiple compare times", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "single_to_many",
+					base_time: "2024-01-01T12:00:00Z",
+					compare_time: [
+						"2024-01-01T15:00:00Z",
+						"2024-01-01T18:00:00Z",
+						"2024-01-01T21:00:00Z",
+					],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.operation).toBe("diff");
+				expect(parsed.interaction_mode).toBe("single_to_many");
+				expect(parsed.result.count).toBe(3);
+				expect(parsed.result.results).toHaveLength(3);
+				expect(parsed.result.results[0].hours).toBe(3);
+				expect(parsed.result.results[1].hours).toBe(6);
+				expect(parsed.result.results[2].hours).toBe(9);
+			});
+
+			it("should fail when not exactly 1 base_time provided", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "single_to_many",
+					base_time: ["2024-01-01T12:00:00Z", "2024-01-02T12:00:00Z"],
+					compare_time: ["2024-01-01T15:00:00Z", "2024-01-01T18:00:00Z"],
+				});
+
+				expect(result.content[0]?.text).toMatch(
+					/single_to_many mode requires exactly 1 base_time and multiple compare_times/,
+				);
+			});
+		});
+
+		describe("many_to_single mode", () => {
+			it("should calculate diff from multiple base times to one compare time", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "many_to_single",
+					base_time: [
+						"2024-01-01T09:00:00Z",
+						"2024-01-01T12:00:00Z",
+						"2024-01-01T15:00:00Z",
+					],
+					compare_time: "2024-01-01T18:00:00Z",
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.operation).toBe("diff");
+				expect(parsed.interaction_mode).toBe("many_to_single");
+				expect(parsed.result.count).toBe(3);
+				expect(parsed.result.results).toHaveLength(3);
+				expect(parsed.result.results[0].hours).toBe(9);
+				expect(parsed.result.results[1].hours).toBe(6);
+				expect(parsed.result.results[2].hours).toBe(3);
+			});
+
+			it("should fail when not exactly 1 compare_time provided", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "many_to_single",
+					base_time: ["2024-01-01T12:00:00Z", "2024-01-02T12:00:00Z"],
+					compare_time: ["2024-01-01T15:00:00Z", "2024-01-01T18:00:00Z"],
+				});
+
+				expect(result.content[0]?.text).toMatch(
+					/many_to_single mode requires multiple base_times and exactly 1 compare_time/,
+				);
+			});
+		});
+
+		describe("cross_product mode", () => {
+			it("should calculate diff for all combinations of base times and compare times", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "cross_product",
+					base_time: ["2024-01-01T12:00:00Z", "2024-01-01T15:00:00Z"],
+					compare_time: ["2024-01-01T14:00:00Z", "2024-01-01T18:00:00Z"],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.operation).toBe("diff");
+				expect(parsed.interaction_mode).toBe("cross_product");
+				expect(parsed.result.count).toBe(4);
+				expect(parsed.result.results).toHaveLength(4);
+
+				// Cross product should produce:
+				// base[0] to compare[0]: 12:00 to 14:00 = 2 hours
+				// base[0] to compare[1]: 12:00 to 18:00 = 6 hours
+				// base[1] to compare[0]: 15:00 to 14:00 = -1 hour
+				// base[1] to compare[1]: 15:00 to 18:00 = 3 hours
+				expect(parsed.result.results[0].hours).toBe(2);
+				expect(parsed.result.results[1].hours).toBe(6);
+				expect(parsed.result.results[2].hours).toBe(-1);
+				expect(parsed.result.results[3].hours).toBe(3);
+			});
+
+			it("should fail when either array is missing", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "cross_product",
+					base_time: "2024-01-01T12:00:00Z",
+					// compare_time missing
+				});
+
+				expect(result.content[0]?.text).toMatch(
+					/cross_product mode requires both base_time and compare_time arrays/,
+				);
+			});
+		});
+
+		describe("pairwise mode validation", () => {
+			it("should calculate diff pairwise between matching indices", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "pairwise",
+					base_time: [
+						"2024-01-01T10:00:00Z",
+						"2024-01-01T12:00:00Z",
+						"2024-01-01T14:00:00Z",
+					],
+					compare_time: [
+						"2024-01-01T13:00:00Z",
+						"2024-01-01T16:00:00Z",
+						"2024-01-01T19:00:00Z",
+					],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.operation).toBe("diff");
+				expect(parsed.interaction_mode).toBe("pairwise");
+				expect(parsed.result.count).toBe(3);
+				expect(parsed.result.results).toHaveLength(3);
+				expect(parsed.result.results[0].hours).toBe(3);
+				expect(parsed.result.results[1].hours).toBe(4);
+				expect(parsed.result.results[2].hours).toBe(5);
+			});
+
+			it("should fail when either array is missing", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "pairwise",
+					base_time: "2024-01-01T12:00:00Z",
+					// compare_time missing
+				});
+
+				expect(result.content[0]?.text).toMatch(
+					/pairwise mode requires both base_time and compare_time arrays/,
+				);
+			});
+		});
+	});
 });

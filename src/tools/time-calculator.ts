@@ -43,12 +43,36 @@ function planOperations(
 			finalCompareTimes = compareTimes.slice(0, minLength);
 			operationCount = minLength;
 		}
+	} else if (interaction_mode === "single_to_many") {
+		if (baseTimes.length !== 1 || compareTimes.length <= 1) {
+			throw new Error(
+				"single_to_many mode requires exactly 1 base_time and multiple compare_times",
+			);
+		}
+		operationCount = compareTimes.length;
+	} else if (interaction_mode === "many_to_single") {
+		if (baseTimes.length <= 1 || compareTimes.length !== 1) {
+			throw new Error(
+				"many_to_single mode requires multiple base_times and exactly 1 compare_time",
+			);
+		}
+		operationCount = baseTimes.length;
 	} else if (interaction_mode === "pairwise") {
+		if (baseTimes.length === 0 || compareTimes.length === 0) {
+			throw new Error(
+				"pairwise mode requires both base_time and compare_time arrays",
+			);
+		}
 		const minLength = Math.min(baseTimes.length, compareTimes.length);
 		finalBaseTimes = baseTimes.slice(0, minLength);
 		finalCompareTimes = compareTimes.slice(0, minLength);
 		operationCount = minLength;
 	} else if (interaction_mode === "cross_product") {
+		if (baseTimes.length === 0 || compareTimes.length === 0) {
+			throw new Error(
+				"cross_product mode requires both base_time and compare_time arrays",
+			);
+		}
 		operationCount = baseTimes.length * compareTimes.length;
 	} else if (interaction_mode === "aggregate") {
 		// For now, treat as pairwise until aggregate is better defined
@@ -312,7 +336,14 @@ export const TimeCalculatorSchema = z.object({
 		.enum(["add", "subtract", "diff", "duration_between", "stats", "sort"])
 		.describe("Type of calculation to perform"),
 	interaction_mode: z
-		.enum(["auto_detect", "pairwise", "cross_product", "aggregate"])
+		.enum([
+			"auto_detect",
+			"single_to_many",
+			"many_to_single",
+			"pairwise",
+			"cross_product",
+			"aggregate",
+		])
 		.optional()
 		.describe(
 			"How base_time and compare_time arrays interact. 'auto_detect' handles single-to-single, single-to-many, many-to-single automatically. Defaults to 'auto_detect'",
@@ -361,7 +392,14 @@ export const timeCalculatorTool: Tool = {
 			},
 			interaction_mode: {
 				type: "string",
-				enum: ["auto_detect", "pairwise", "cross_product", "aggregate"],
+				enum: [
+					"auto_detect",
+					"single_to_many",
+					"many_to_single",
+					"pairwise",
+					"cross_product",
+					"aggregate",
+				],
 				description:
 					"How base_time and compare_time arrays interact. 'auto_detect' handles single-to-single, single-to-many, many-to-single automatically. Defaults to 'auto_detect'",
 			},
@@ -733,22 +771,18 @@ export async function handleTimeCalculator(args: unknown) {
 						}
 						break;
 					case "single_to_many":
-						if (baseTimes[0]) {
-							diffResults = _executeSingleToMany(
-								baseTimes,
-								compareTimes,
-								diffOperation,
-							);
-						}
+						diffResults = _executeSingleToMany(
+							baseTimes,
+							compareTimes,
+							diffOperation,
+						);
 						break;
 					case "many_to_single":
-						if (compareTimes[0]) {
-							diffResults = _executeManyToSingle(
-								baseTimes,
-								compareTimes,
-								diffOperation,
-							);
-						}
+						diffResults = _executeManyToSingle(
+							baseTimes,
+							compareTimes,
+							diffOperation,
+						);
 						break;
 					case "pairwise":
 						diffResults = _executePairwise(
