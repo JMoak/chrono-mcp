@@ -1,6 +1,6 @@
 {
 	"name": "@jmoak/chrono-mcp",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": false,
 	"type": "module",
 	"description": "A Model Context Protocol (MCP) server providing real-time date, time, and timezone tools with calculation capabilities",
