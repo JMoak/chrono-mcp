@@ -875,52 +875,61 @@ describe("handleTimeCalculator", () => {
 			const result = await handleTimeCalculator({
 				operation: "stats",
 				base_time: [
-					"2024-01-01T00:00:00Z", 
-					"2024-01-01T00:00:00Z", 
-					"2024-01-01T00:00:00Z"
+					"2024-01-01T00:00:00Z",
+					"2024-01-01T00:00:00Z",
+					"2024-01-01T00:00:00Z",
 				],
 				compare_time: [
-					"2024-01-08T00:00:00Z",  // 7 days
+					"2024-01-08T00:00:00Z", // 7 days
 					"2024-01-15T00:00:00Z", // 14 days
-					"2024-01-22T00:00:00Z"  // 21 days
-				]
+					"2024-01-22T00:00:00Z", // 21 days
+				],
 			});
 
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("stats");
 			expect(parsed.result.duration_analysis).toBeDefined();
-			
+
 			// Should show proper duration formatting, not relative times like "55 years ago"
 			expect(parsed.result.duration_analysis.min_duration_human).toBe("7 days");
-			expect(parsed.result.duration_analysis.max_duration_human).toBe("21 days");
-			expect(parsed.result.duration_analysis.mean_duration_human).toBe("14 days");
-			expect(parsed.result.duration_analysis.median_duration_human).toBe("14 days");
-			
+			expect(parsed.result.duration_analysis.max_duration_human).toBe(
+				"21 days",
+			);
+			expect(parsed.result.duration_analysis.mean_duration_human).toBe(
+				"14 days",
+			);
+			expect(parsed.result.duration_analysis.median_duration_human).toBe(
+				"14 days",
+			);
+
 			// Verify the mathematical calculations are correct
 			expect(parsed.result.duration_analysis.min_duration_ms).toBe(604800000); // 7 days in ms
 			expect(parsed.result.duration_analysis.max_duration_ms).toBe(1814400000); // 21 days in ms
 			expect(parsed.result.duration_analysis.mean_duration_ms).toBe(1209600000); // 14 days in ms
-			expect(parsed.result.duration_analysis.std_deviation_ms).toBeGreaterThan(0); // Should have variation
+			expect(parsed.result.duration_analysis.std_deviation_ms).toBeGreaterThan(
+				0,
+			); // Should have variation
 		});
 
 		it("should format complex durations with multiple time units", async () => {
 			const result = await handleTimeCalculator({
 				operation: "stats",
-				base_time: [
-					"2024-01-01T00:00:00Z",
-					"2024-01-01T00:00:00Z"
-				],
+				base_time: ["2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"],
 				compare_time: [
 					"2024-01-01T01:30:45Z", // 1 hour, 30 minutes, 45 seconds
-					"2024-01-03T14:45:30Z"  // 2 days, 14 hours, 45 minutes, 30 seconds
-				]
+					"2024-01-03T14:45:30Z", // 2 days, 14 hours, 45 minutes, 30 seconds
+				],
 			});
 
 			const parsed = parseResult(result);
-			
-			expect(parsed.result.duration_analysis.min_duration_human).toBe("1 hour, 30 minutes, 45 seconds");
-			expect(parsed.result.duration_analysis.max_duration_human).toBe("2 days, 14 hours, 45 minutes, 30 seconds");
+
+			expect(parsed.result.duration_analysis.min_duration_human).toBe(
+				"1 hour, 30 minutes, 45 seconds",
+			);
+			expect(parsed.result.duration_analysis.max_duration_human).toBe(
+				"2 days, 14 hours, 45 minutes, 30 seconds",
+			);
 		});
 
 		it("should format timestamp analysis human-readable spans correctly", async () => {
@@ -928,63 +937,71 @@ describe("handleTimeCalculator", () => {
 				operation: "stats",
 				base_time: [
 					"2024-01-01T08:00:00Z",
-					"2024-01-02T09:15:00Z", 
+					"2024-01-02T09:15:00Z",
 					"2024-01-03T07:45:00Z",
-					"2024-01-04T08:30:00Z"
-				]
+					"2024-01-04T08:30:00Z",
+				],
 			});
 
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("stats");
 			expect(parsed.result.timestamp_analysis).toBeDefined();
-			
+
 			// Should show proper duration formatting for time spans
-			expect(parsed.result.timestamp_analysis.total_span_human).not.toContain("years ago");
-			expect(parsed.result.timestamp_analysis.total_span_human).toMatch(/\d+ days/); // Should be in days format
-			
+			expect(parsed.result.timestamp_analysis.total_span_human).not.toContain(
+				"years ago",
+			);
+			expect(parsed.result.timestamp_analysis.total_span_human).toMatch(
+				/\d+ days/,
+			); // Should be in days format
+
 			// Interval analysis should also be formatted correctly
 			if (parsed.result.interval_analysis) {
-				expect(parsed.result.interval_analysis.mean_interval_human).not.toContain("years ago");
-				expect(parsed.result.interval_analysis.mean_interval_human).toMatch(/\d+ (day|hour|minute)/);
+				expect(
+					parsed.result.interval_analysis.mean_interval_human,
+				).not.toContain("years ago");
+				expect(parsed.result.interval_analysis.mean_interval_human).toMatch(
+					/\d+ (day|hour|minute)/,
+				);
 			}
 		});
 
 		it("should handle edge cases in duration formatting", async () => {
 			const result = await handleTimeCalculator({
 				operation: "stats",
-				base_time: [
-					"2024-01-01T00:00:00Z",
-					"2024-01-01T00:00:00Z"
-				],
+				base_time: ["2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"],
 				compare_time: [
 					"2024-01-01T00:00:01Z", // 1 second
-					"2024-01-01T00:01:00Z"  // 1 minute
-				]
+					"2024-01-01T00:01:00Z", // 1 minute
+				],
 			});
 
 			const parsed = parseResult(result);
-			
-			expect(parsed.result.duration_analysis.min_duration_human).toBe("1 second");
-			expect(parsed.result.duration_analysis.max_duration_human).toBe("1 minute");
+
+			expect(parsed.result.duration_analysis.min_duration_human).toBe(
+				"1 second",
+			);
+			expect(parsed.result.duration_analysis.max_duration_human).toBe(
+				"1 minute",
+			);
 		});
 
 		it("should handle zero and negative durations", async () => {
 			const result = await handleTimeCalculator({
 				operation: "stats",
-				base_time: [
-					"2024-01-15T12:00:00Z",
-					"2024-01-15T12:00:00Z"
-				],
+				base_time: ["2024-01-15T12:00:00Z", "2024-01-15T12:00:00Z"],
 				compare_time: [
 					"2024-01-15T12:00:00Z", // 0 duration
-					"2024-01-15T10:00:00Z"  // negative 2 hours
-				]
+					"2024-01-15T10:00:00Z", // negative 2 hours
+				],
 			});
 
 			const parsed = parseResult(result);
-			
-			expect(parsed.result.duration_analysis.min_duration_human).toBe("-2 hours");
+
+			expect(parsed.result.duration_analysis.min_duration_human).toBe(
+				"-2 hours",
+			);
 			// Note: formatDuration should handle negative durations with minus sign
 		});
 	});

@@ -1307,7 +1307,7 @@ export async function handleTimeCalculator(args: unknown) {
 					earliest_time: earliest.parsed.toISO(),
 					latest_time: latest.parsed.toISO(),
 					total_span_ms: totalSpan,
-					total_span_human: DateTime.fromMillis(totalSpan).toRelative(),
+					total_span_human: formatDuration(totalSpan),
 					timezone_used: parseTimezone || "system",
 				},
 			};
