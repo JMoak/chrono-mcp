@@ -111,6 +111,43 @@ export function parseDateTime(dateString: string, timezone?: string): DateTime {
 }
 
 /**
+ * Format duration in milliseconds to human-readable string
+ */
+export function formatDuration(milliseconds: number): string {
+	const absMs = Math.abs(milliseconds);
+	const isNegative = milliseconds < 0;
+
+	// Calculate all units
+	const years = Math.floor(absMs / (1000 * 60 * 60 * 24 * 365.25));
+	const remainingAfterYears = absMs % (1000 * 60 * 60 * 24 * 365.25);
+	const days = Math.floor(remainingAfterYears / (1000 * 60 * 60 * 24));
+	const hours = Math.floor((absMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+	const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60));
+	const seconds = Math.floor((absMs % (1000 * 60)) / 1000);
+
+	const parts: string[] = [];
+
+	// Add years if significant (more than 1 year)
+	if (years > 0) parts.push(`${years} year${years !== 1 ? "s" : ""}`);
+
+	// For very large spans (>10 years), only show years and days for readability
+	if (years >= 10) {
+		if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+	} else {
+		// For smaller spans, show more detail
+		if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+		if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+		if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? "s" : ""}`);
+		if (seconds > 0) parts.push(`${seconds} second${seconds !== 1 ? "s" : ""}`);
+	}
+
+	if (parts.length === 0) return "0 seconds";
+
+	const result = parts.join(", ");
+	return isNegative ? `-${result}` : result;
+}
+
+/**
  * Validate if a string is a valid timezone
  */
 export function isValidTimezone(timezone: string): boolean {

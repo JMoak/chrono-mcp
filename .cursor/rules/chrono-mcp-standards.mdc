@@ -1,0 +1,53 @@
+---
+description: "Chrono MCP Project Standards and Guidelines"
+globs: ["**/*.ts", "**/*.js", "**/*.json"]
+alwaysApply: true
+---
+
+# Chrono MCP Project Guidelines
+
+## Project Overview
+This is a Model Context Protocol (MCP) server for time and date operations, providing tools for:
+- Getting current time across timezones
+- Time calculations and arithmetic
+- Date formatting and conversion
+
+## Coding Standards
+
+### TypeScript/JavaScript
+- Use TypeScript for all new source files
+- Prefer functional programming patterns
+- Use proper error handling with try-catch blocks
+- Export functions and types explicitly
+- Follow the existing project structure in `src/` directory
+
+### MCP Tools
+- Each tool should have comprehensive input validation
+- Use the existing validation utilities in `src/utils/validation.ts`
+- Follow the MCP protocol standards for tool definitions
+- Include proper JSDoc comments for all exported functions
+- Provide clear error messages for invalid inputs
+
+### Testing
+- Write comprehensive tests for all tools using the existing test framework
+- Test edge cases and error conditions
+- Use descriptive test names that explain the scenario
+- Follow the pattern established in existing `.test.ts` files
+
+### Time Handling
+- Always use proper timezone-aware date handling
+- Leverage the utilities in `src/utils/date-utils.ts`
+- Support ISO 8601 datetime strings as input
+- Provide multiple output formats when appropriate
+
+### Build Process
+- Source files go in `src/` directory
+- Compiled output goes to `dist/` directory
+- Use `npm run build` to compile TypeScript
+- Use `npm test` to run the test suite
+
+## Architecture Notes
+- The main entry point is `src/index.ts`
+- Tools are organized in `src/tools/` directory
+- Shared utilities are in `src/utils/` directory
+- Each tool exports its definition and implementation
