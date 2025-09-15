@@ -4,6 +4,51 @@ import { z } from "zod";
 
 const MAX_OPERATIONS = 10000;
 
+interface TimeCalculatorResponse {
+	success: boolean;
+	operation: string;
+	result?: unknown;
+	error?: string;
+	warnings?: string[];
+	metadata: {
+		calculation_time: string;
+		calculation_timezone: string;
+		processed_count?: number;
+		failed_count?: number;
+	};
+}
+
+type ParseResult<T> =
+	| { success: true; data: T }
+	| { success: false; error: string };
+
+type OperationResult<T> =
+	| { success: true; data: T; warnings?: string[] }
+	| { success: false; error: string };
+
+function createResponse(response: TimeCalculatorResponse) {
+	return {
+		content: [
+			{
+				type: "text" as const,
+				text: JSON.stringify(response, null, 2),
+			},
+		],
+	};
+}
+
+function createErrorResponse(operation: string, error: string) {
+	return createResponse({
+		success: false,
+		operation,
+		error,
+		metadata: {
+			calculation_time: DateTime.now().toISO() || "",
+			calculation_timezone: DateTime.now().zoneName || "system",
+		},
+	});
+}
+
 interface OperationPlan {
 	interaction_mode: string;
 	base_times: string[];
@@ -14,7 +59,7 @@ function planOperations(
 	base_time: string | string[] | undefined,
 	compare_time: string | string[] | undefined,
 	interaction_mode: string,
-): OperationPlan {
+): ParseResult<OperationPlan> {
 	// Normalize inputs to arrays using safe parsing
 	const baseTimes = base_time ? safelyParseTimeArray(base_time) : [];
 	const compareTimes = compare_time ? safelyParseTimeArray(compare_time) : [];
@@ -45,23 +90,28 @@ function planOperations(
 		}
 	} else if (interaction_mode === "single_to_many") {
 		if (baseTimes.length !== 1 || compareTimes.length <= 1) {
-			throw new Error(
-				"single_to_many mode requires exactly 1 base_time and multiple compare_times",
-			);
+			return {
+				success: false,
+				error:
+					"single_to_many mode requires exactly 1 base_time and multiple compare_times",
+			};
 		}
 		operationCount = compareTimes.length;
 	} else if (interaction_mode === "many_to_single") {
 		if (baseTimes.length <= 1 || compareTimes.length !== 1) {
-			throw new Error(
-				"many_to_single mode requires multiple base_times and exactly 1 compare_time",
-			);
+			return {
+				success: false,
+				error:
+					"many_to_single mode requires multiple base_times and exactly 1 compare_time",
+			};
 		}
 		operationCount = baseTimes.length;
 	} else if (interaction_mode === "pairwise") {
 		if (baseTimes.length === 0 || compareTimes.length === 0) {
-			throw new Error(
-				"pairwise mode requires both base_time and compare_time arrays",
-			);
+			return {
+				success: false,
+				error: "pairwise mode requires both base_time and compare_time arrays",
+			};
 		}
 		const minLength = Math.min(baseTimes.length, compareTimes.length);
 		finalBaseTimes = baseTimes.slice(0, minLength);
@@ -69,9 +119,11 @@ function planOperations(
 		operationCount = minLength;
 	} else if (interaction_mode === "cross_product") {
 		if (baseTimes.length === 0 || compareTimes.length === 0) {
-			throw new Error(
-				"cross_product mode requires both base_time and compare_time arrays",
-			);
+			return {
+				success: false,
+				error:
+					"cross_product mode requires both base_time and compare_time arrays",
+			};
 		}
 		operationCount = baseTimes.length * compareTimes.length;
 	} else if (interaction_mode === "aggregate") {
@@ -84,15 +136,19 @@ function planOperations(
 
 	// Enforce maximum operations
 	if (operationCount > MAX_OPERATIONS) {
-		throw new Error(
-			`Operation count (${operationCount}) exceeds maximum allowed (${MAX_OPERATIONS}) for interaction mode '${actualMode}'`,
-		);
+		return {
+			success: false,
+			error: `Operation count (${operationCount}) exceeds maximum allowed (${MAX_OPERATIONS}) for interaction mode '${actualMode}'`,
+		};
 	}
 
 	return {
-		interaction_mode: actualMode,
-		base_times: finalBaseTimes,
-		compare_times: finalCompareTimes,
+		success: true,
+		data: {
+			interaction_mode: actualMode,
+			base_times: finalBaseTimes,
+			compare_times: finalCompareTimes,
+		},
 	};
 }
 
@@ -129,11 +185,11 @@ function parseTimestamps(
 	times: string | string[] | undefined,
 	timezone?: string,
 	fieldName: string = "time",
-	allowInvalid: boolean = false,
-): DateTime[] {
+	allowInvalidForPairwise: boolean = false,
+): ParseResult<DateTime[]> {
 	const timesArray = safelyParseTimeArray(times);
-
 	const parsedTimes: DateTime[] = [];
+	const invalidTimes: string[] = [];
 
 	for (const timeStr of timesArray) {
 		// Check for timezone indicators: Z, +, or - after the time part
@@ -150,16 +206,35 @@ function parseTimestamps(
 			}
 		}
 
-		if (!dt.isValid && !allowInvalid) {
-			throw new Error(
-				`Invalid ${fieldName} format: ${timeStr} - ${dt.invalidReason}`,
-			);
+		if (!dt.isValid) {
+			invalidTimes.push(`${timeStr} (${dt.invalidReason})`);
 		}
 
+		// Always add to parsed times (invalid ones will be handled gracefully by callers)
 		parsedTimes.push(dt);
 	}
 
-	return parsedTimes;
+	// For pairwise operations, allow invalid timestamps to pass through
+	// Individual pairs will handle errors gracefully in _executePairwise
+	if (allowInvalidForPairwise && invalidTimes.length > 0) {
+		return {
+			success: true,
+			data: parsedTimes, // Include invalid DateTime objects
+		};
+	}
+
+	// For non-pairwise operations, fail if any timestamps are invalid
+	if (invalidTimes.length > 0) {
+		return {
+			success: false,
+			error: `Invalid ${fieldName} format(s): ${invalidTimes.join(", ")}`,
+		};
+	}
+
+	return {
+		success: true,
+		data: parsedTimes,
+	};
 }
 
 interface DurationObject {
@@ -175,25 +250,45 @@ function applyDuration(
 	timestamps: DateTime[],
 	duration: DurationObject,
 	operation: "add" | "subtract",
-): DateTime[] {
+): OperationResult<DateTime[]> {
 	const results: DateTime[] = [];
+	const errors: string[] = [];
 
-	for (const timestamp of timestamps) {
+	for (let i = 0; i < timestamps.length; i++) {
+		const timestamp = timestamps[i];
+		if (!timestamp || !timestamp.isValid) {
+			errors.push(
+				`Timestamp at index ${i} is invalid: ${timestamp?.invalidReason || "undefined timestamp"}`,
+			);
+			continue;
+		}
+
 		const resultTime =
 			operation === "add"
 				? timestamp.plus(duration)
 				: timestamp.minus(duration);
 
 		if (!resultTime.isValid) {
-			throw new Error(
-				`Invalid result from ${operation}: ${resultTime.invalidReason}`,
+			errors.push(
+				`Invalid result from ${operation} at index ${i}: ${resultTime.invalidReason}`,
 			);
+			continue;
 		}
 
 		results.push(resultTime);
 	}
 
-	return results;
+	if (errors.length > 0) {
+		return {
+			success: false,
+			error: errors.join("; "),
+		};
+	}
+
+	return {
+		success: true,
+		data: results,
+	};
 }
 
 interface ResultFormat {
@@ -583,660 +678,692 @@ export async function handleTimeCalculator(args: unknown) {
 	const parseResult = TimeCalculatorSchema.safeParse(args);
 
 	if (!parseResult.success) {
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: `Invalid arguments: ${parseResult.error.message}`,
-				},
-			],
-		};
+		return createErrorResponse(
+			"unknown",
+			`Invalid arguments: ${parseResult.error.message}`,
+		);
 	}
 
 	const validatedArgs = parseResult.data;
 
-	try {
-		// Plan and validate operations before processing
-		const plan = planOperations(
-			validatedArgs.base_time,
-			validatedArgs.compare_time,
-			validatedArgs.interaction_mode || "auto_detect",
-		);
+	// Plan and validate operations before processing
+	const planResult = planOperations(
+		validatedArgs.base_time,
+		validatedArgs.compare_time,
+		validatedArgs.interaction_mode || "auto_detect",
+	);
 
-		// Parse base times using utility function (allow invalid for pairwise operations)
-		const allowInvalidTimestamps =
-			plan.interaction_mode === "pairwise" &&
-			(validatedArgs.operation === "diff" ||
-				validatedArgs.operation === "duration_between");
-		const baseTimes = parseTimestamps(
-			validatedArgs.base_time,
-			validatedArgs.timezone,
-			"base_time",
-			allowInvalidTimestamps,
-		);
+	if (!planResult.success) {
+		return createErrorResponse(validatedArgs.operation, planResult.error);
+	}
 
-		interface CalculationResult {
-			operation: string;
-			interaction_mode: string;
-			input: {
-				base_time: string | string[];
-				compare_time?: string | string[];
-				duration?: DurationObject;
-			};
-			result: unknown;
-			result_timezone?: string;
-			metadata: {
-				calculation_time: string;
-				calculation_timezone: string;
-			};
-		}
+	const plan = planResult.data;
 
-		const result: CalculationResult = {
-			operation: validatedArgs.operation,
-			interaction_mode: plan.interaction_mode,
-			input: {
-				base_time:
-					baseTimes.length === 1
-						? baseTimes[0]?.toISO() || (validatedArgs.base_time as string) || ""
-						: baseTimes.map(
-								(dt, i) =>
-									dt.toISO() ||
-									(Array.isArray(validatedArgs.base_time)
-										? validatedArgs.base_time[i]
-										: validatedArgs.base_time) ||
-									"",
-							),
-			},
-			result: null,
-			metadata: {
-				calculation_time: "",
-				calculation_timezone: "",
-			},
+	// Parse base times using utility function
+	const isPairwise = plan.interaction_mode === "pairwise";
+	const baseTimesResult = parseTimestamps(
+		validatedArgs.base_time,
+		validatedArgs.timezone,
+		"base_time",
+		isPairwise,
+	);
+
+	// For non-pairwise operations, fail if any timestamps are invalid
+	if (!baseTimesResult.success) {
+		return createErrorResponse(validatedArgs.operation, baseTimesResult.error);
+	}
+
+	const baseTimes = baseTimesResult.data;
+
+	interface CalculationResult {
+		operation: string;
+		interaction_mode: string;
+		input: {
+			base_time: string | string[];
+			compare_time?: string | string[];
+			duration?: DurationObject;
 		};
+		result: unknown;
+		result_timezone?: string;
+		metadata: {
+			calculation_time: string;
+			calculation_timezone: string;
+		};
+	}
 
-		switch (validatedArgs.operation) {
-			case "add":
-			case "subtract": {
-				// Calculate operation count for add/subtract: sum of both array lengths
-				let operationCount = baseTimes.length;
-				if (validatedArgs.compare_time) {
-					const compareTimes = safelyParseTimeArray(validatedArgs.compare_time);
-					operationCount += compareTimes.length;
-				}
+	const result: CalculationResult = {
+		operation: validatedArgs.operation,
+		interaction_mode: plan.interaction_mode,
+		input: {
+			base_time:
+				baseTimes.length === 1
+					? baseTimes[0]?.toISO() || (validatedArgs.base_time as string) || ""
+					: baseTimes.map(
+							(dt, i) =>
+								dt.toISO() ||
+								(Array.isArray(validatedArgs.base_time)
+									? validatedArgs.base_time[i]
+									: validatedArgs.base_time) ||
+								"",
+						),
+		},
+		result: null,
+		metadata: {
+			calculation_time: "",
+			calculation_timezone: "",
+		},
+	};
 
-				// Enforce maximum operations
-				if (operationCount > MAX_OPERATIONS) {
-					throw new Error(
-						`Operation count (${operationCount}) exceeds maximum allowed (${MAX_OPERATIONS}) for ${validatedArgs.operation} operation`,
+	switch (validatedArgs.operation) {
+		case "add":
+		case "subtract": {
+			// Calculate operation count for add/subtract: sum of both array lengths
+			let operationCount = baseTimes.length;
+			if (validatedArgs.compare_time) {
+				const compareTimes = safelyParseTimeArray(validatedArgs.compare_time);
+				operationCount += compareTimes.length;
+			}
+
+			// Enforce maximum operations
+			if (operationCount > MAX_OPERATIONS) {
+				return createErrorResponse(
+					validatedArgs.operation,
+					`Operation count (${operationCount}) exceeds maximum allowed (${MAX_OPERATIONS}) for ${validatedArgs.operation} operation`,
+				);
+			}
+
+			// Build duration object from provided values
+			const duration: DurationObject = {};
+			if (validatedArgs.years !== undefined)
+				duration.years = validatedArgs.years;
+			if (validatedArgs.months !== undefined)
+				duration.months = validatedArgs.months;
+			if (validatedArgs.days !== undefined) duration.days = validatedArgs.days;
+			if (validatedArgs.hours !== undefined)
+				duration.hours = validatedArgs.hours;
+			if (validatedArgs.minutes !== undefined)
+				duration.minutes = validatedArgs.minutes;
+			if (validatedArgs.seconds !== undefined)
+				duration.seconds = validatedArgs.seconds;
+
+			if (Object.keys(duration).length === 0) {
+				return createErrorResponse(
+					validatedArgs.operation,
+					`No duration specified for ${validatedArgs.operation} operation`,
+				);
+			}
+
+			// Apply duration to base times
+			const baseResults = applyDuration(
+				baseTimes,
+				duration,
+				validatedArgs.operation,
+			);
+
+			if (!baseResults.success) {
+				return createErrorResponse(validatedArgs.operation, baseResults.error);
+			}
+
+			// Handle compare_time if provided
+			let compareResults: DateTime[] | undefined;
+			if (validatedArgs.compare_time) {
+				const compareTimesResult = parseTimestamps(
+					validatedArgs.compare_time,
+					validatedArgs.compare_time_timezone || validatedArgs.timezone,
+					"compare_time",
+				);
+
+				if (!compareTimesResult.success) {
+					return createErrorResponse(
+						validatedArgs.operation,
+						compareTimesResult.error,
 					);
 				}
 
-				// Build duration object from provided values
-				const duration: DurationObject = {};
-				if (validatedArgs.years !== undefined)
-					duration.years = validatedArgs.years;
-				if (validatedArgs.months !== undefined)
-					duration.months = validatedArgs.months;
-				if (validatedArgs.days !== undefined)
-					duration.days = validatedArgs.days;
-				if (validatedArgs.hours !== undefined)
-					duration.hours = validatedArgs.hours;
-				if (validatedArgs.minutes !== undefined)
-					duration.minutes = validatedArgs.minutes;
-				if (validatedArgs.seconds !== undefined)
-					duration.seconds = validatedArgs.seconds;
-
-				if (Object.keys(duration).length === 0) {
-					throw new Error(
-						`No duration specified for ${validatedArgs.operation} operation`,
-					);
-				}
-
-				// Apply duration to base times
-				const baseResults = applyDuration(
-					baseTimes,
+				const compareDurationResult = applyDuration(
+					compareTimesResult.data,
 					duration,
 					validatedArgs.operation,
 				);
 
-				// Handle compare_time if provided
-				let compareResults: DateTime[] | undefined;
-				if (validatedArgs.compare_time) {
-					const compareTimes = parseTimestamps(
-						validatedArgs.compare_time,
-						validatedArgs.compare_time_timezone || validatedArgs.timezone,
-						"compare_time",
-					);
-					compareResults = applyDuration(
-						compareTimes,
-						duration,
+				if (!compareDurationResult.success) {
+					return createErrorResponse(
 						validatedArgs.operation,
+						compareDurationResult.error,
 					);
-
-					// Update input to include compare_time
-					result.input.compare_time =
-						compareTimes.length === 1
-							? compareTimes[0]?.toISO() || ""
-							: compareTimes.map((dt) => dt.toISO() || "");
 				}
 
-				result.input.duration = duration;
+				compareResults = compareDurationResult.data;
 
-				// Format results based on whether compare_time is provided
-				if (compareResults) {
-					// Both base and compare provided - return structured output
-					result.result = {
-						base_results: formatResults(baseResults, false),
-						compare_results: formatResults(compareResults, false),
-					};
-				} else {
-					// Only base_time provided - return simple format (maintain backward compatibility)
-					const shouldReturnSingle = baseTimes.length === 1;
-					if (shouldReturnSingle) {
-						result.result = formatResults(baseResults, true);
-						result.result_timezone = baseResults[0]?.zoneName || "unknown";
-					} else {
-						result.result = formatResults(baseResults, false);
-					}
-				}
-				break;
+				// Update input to include compare_time
+				result.input.compare_time =
+					compareTimesResult.data.length === 1
+						? compareTimesResult.data[0]?.toISO() || ""
+						: compareTimesResult.data.map((dt) => dt.toISO() || "");
 			}
 
-			case "diff":
-			case "duration_between": {
-				if (!validatedArgs.compare_time) {
-					throw new Error(
-						`compare_time is required for ${validatedArgs.operation} operation`,
-					);
+			result.input.duration = duration;
+
+			// Format results based on whether compare_time is provided
+			if (compareResults) {
+				// Both base and compare provided - return structured output
+				result.result = {
+					base_results: formatResults(baseResults.data, false),
+					compare_results: formatResults(compareResults, false),
+				};
+			} else {
+				// Only base_time provided - return simple format (maintain backward compatibility)
+				const shouldReturnSingle = baseTimes.length === 1;
+				if (shouldReturnSingle) {
+					result.result = formatResults(baseResults.data, true);
+					result.result_timezone = baseResults.data[0]?.zoneName || "unknown";
+				} else {
+					result.result = formatResults(baseResults.data, false);
 				}
+			}
+			break;
+		}
+
+		case "diff":
+		case "duration_between": {
+			if (!validatedArgs.compare_time) {
+				return createErrorResponse(
+					validatedArgs.operation,
+					`compare_time is required for ${validatedArgs.operation} operation`,
+				);
+			}
+
+			const compareTimezone =
+				validatedArgs.compare_time_timezone || validatedArgs.timezone;
+
+			// Parse compare times using utility function
+			const compareTimesResult = parseTimestamps(
+				validatedArgs.compare_time,
+				compareTimezone,
+				"compare_time",
+				isPairwise,
+			);
+
+			// For non-pairwise operations, fail if any timestamps are invalid
+			if (!compareTimesResult.success) {
+				return createErrorResponse(
+					validatedArgs.operation,
+					compareTimesResult.error,
+				);
+			}
+
+			const compareTimes = compareTimesResult.data;
+
+			// Update input to show the compare times properly
+			result.input.compare_time =
+				compareTimes.length === 1
+					? compareTimes[0]?.toISO() ||
+						(validatedArgs.compare_time as string) ||
+						""
+					: compareTimes.map(
+							(dt, i) =>
+								dt.toISO() ||
+								(Array.isArray(validatedArgs.compare_time)
+									? validatedArgs.compare_time[i]
+									: validatedArgs.compare_time) ||
+								"",
+						);
+
+			// Handle different interaction modes for batch operations
+			const diffOperation = (baseTime: DateTime, compareTime: DateTime) => {
+				const diff = compareTime.diff(baseTime, [
+					"years",
+					"months",
+					"days",
+					"hours",
+					"minutes",
+					"seconds",
+					"milliseconds",
+				]);
+
+				const totalMs = compareTime.diff(baseTime).as("milliseconds");
+
+				if (validatedArgs.operation === "diff") {
+					// Simple diff in various units
+					return {
+						milliseconds: totalMs,
+						seconds: Math.floor(totalMs / 1000),
+						minutes: Math.floor(totalMs / (1000 * 60)),
+						hours: Math.floor(totalMs / (1000 * 60 * 60)),
+						days: Math.floor(totalMs / (1000 * 60 * 60 * 24)),
+					};
+				} else {
+					// Detailed duration breakdown
+					return {
+						years: Math.floor(diff.years),
+						months: Math.floor(diff.months),
+						days: Math.floor(diff.days),
+						hours: Math.floor(diff.hours),
+						minutes: Math.floor(diff.minutes),
+						seconds: Math.floor(diff.seconds),
+						milliseconds: diff.milliseconds,
+						total_milliseconds: totalMs,
+						human_readable: diff.toHuman(),
+					};
+				}
+			};
+
+			// Execute based on interaction mode
+			let diffResults: unknown[] = [];
+
+			switch (plan.interaction_mode) {
+				case "single_to_single":
+					if (baseTimes[0] && compareTimes[0]) {
+						diffResults = [diffOperation(baseTimes[0], compareTimes[0])];
+					}
+					break;
+				case "single_to_many":
+					diffResults = _executeSingleToMany(
+						baseTimes,
+						compareTimes,
+						diffOperation,
+					);
+					break;
+				case "many_to_single":
+					diffResults = _executeManyToSingle(
+						baseTimes,
+						compareTimes,
+						diffOperation,
+					);
+					break;
+				case "pairwise":
+					diffResults = _executePairwise(
+						baseTimes,
+						compareTimes,
+						diffOperation,
+					);
+					break;
+				case "cross_product":
+					diffResults = _executeCrossProduct(
+						baseTimes,
+						compareTimes,
+						diffOperation,
+					);
+					break;
+				default:
+					// Fallback to pairwise
+					diffResults = _executePairwise(
+						baseTimes,
+						compareTimes,
+						diffOperation,
+					);
+					break;
+			}
+
+			// Format result based on count
+			if (diffResults.length === 1) {
+				result.result = diffResults[0];
+			} else {
+				const batchResult: {
+					count: number;
+					results: unknown[];
+					interaction_mode: string;
+					batch_summary?: {
+						total_pairs: number;
+						successful_calculations: number;
+						failed_calculations: number;
+					};
+				} = {
+					count: diffResults.length,
+					results: diffResults,
+					interaction_mode: plan.interaction_mode,
+				};
+
+				// Add batch summary for pairwise operations
+				if (plan.interaction_mode === "pairwise") {
+					const errorResults = diffResults.filter(
+						(r) => typeof r === "object" && r && "error" in r,
+					);
+					const successResults = diffResults.filter(
+						(r) => typeof r === "object" && r && !("error" in r),
+					);
+
+					batchResult.batch_summary = {
+						total_pairs: diffResults.length,
+						successful_calculations: successResults.length,
+						failed_calculations: errorResults.length,
+					};
+				}
+
+				result.result = batchResult;
+			}
+			break;
+		}
+
+		case "stats": {
+			// Stats operation requires arrays of times for meaningful analysis
+			if (!validatedArgs.base_time) {
+				throw new Error("stats operation requires base_time");
+			}
+
+			const baseTimes = safelyParseTimeArray(validatedArgs.base_time);
+			if (baseTimes.length < 2) {
+				throw new Error("stats operation requires at least 2 timestamps");
+			}
+			const compareTimes = validatedArgs.compare_time
+				? safelyParseTimeArray(validatedArgs.compare_time)
+				: undefined;
+
+			// Parse all base times
+			const baseTimestamps: number[] = [];
+			const parseTimezone = validatedArgs.timezone;
+
+			for (const timeStr of baseTimes) {
+				const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
+				let dt: DateTime;
+				if (parseTimezone && !hasTimezone) {
+					dt = DateTime.fromISO(timeStr, { zone: parseTimezone });
+				} else {
+					dt = DateTime.fromISO(timeStr);
+					if (parseTimezone) dt = dt.setZone(parseTimezone);
+				}
+				if (!dt.isValid) {
+					throw new Error(`Invalid time format in base_time: ${timeStr}`);
+				}
+				baseTimestamps.push(dt.toMillis());
+			}
+
+			const stats: StatsResult = {
+				input_analysis: {
+					base_time_count: baseTimes.length,
+					compare_time_count: compareTimes?.length || 0,
+				},
+			};
+
+			// If only base_time is provided, analyze the timestamps themselves
+			if (!compareTimes || compareTimes.length === 0) {
+				if (baseTimestamps.length === 0) {
+					throw new Error("No valid timestamps found in base_time");
+				}
+
+				const sorted = [...baseTimestamps].sort((a, b) => a - b);
+				const min = sorted[0];
+				const max = sorted[sorted.length - 1];
+
+				if (min === undefined || max === undefined) {
+					throw new Error("Invalid timestamp data for stats calculation");
+				}
+
+				const mean =
+					baseTimestamps.reduce((sum, val) => sum + val, 0) /
+					baseTimestamps.length;
+
+				// Calculate median
+				const mid = Math.floor(sorted.length / 2);
+				const median =
+					sorted.length % 2 === 0
+						? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+						: (sorted[mid] ?? 0);
+
+				// Calculate standard deviation
+				const variance =
+					baseTimestamps.reduce((sum, val) => sum + (val - mean) ** 2, 0) /
+					baseTimestamps.length;
+				const stdDev = Math.sqrt(variance);
+
+				// Calculate intervals between consecutive timestamps
+				const intervals: number[] = [];
+				for (let i = 1; i < sorted.length; i++) {
+					const current = sorted[i];
+					const previous = sorted[i - 1];
+					if (current !== undefined && previous !== undefined) {
+						intervals.push(current - previous);
+					}
+				}
+
+				stats.timestamp_analysis = {
+					earliest: DateTime.fromMillis(min).toISO() ?? "Invalid Date",
+					latest: DateTime.fromMillis(max).toISO() ?? "Invalid Date",
+					total_span_ms: max - min,
+					total_span_human: DateTime.fromMillis(max)
+						.diff(DateTime.fromMillis(min))
+						.toHuman(),
+					mean_timestamp: DateTime.fromMillis(mean).toISO() ?? "Invalid Date",
+					median_timestamp:
+						DateTime.fromMillis(median).toISO() ?? "Invalid Date",
+					std_deviation_ms: Math.round(stdDev),
+				};
+
+				if (intervals.length > 0) {
+					const intervalMean =
+						intervals.reduce((sum, val) => sum + val, 0) / intervals.length;
+					const intervalMin = Math.min(...intervals);
+					const intervalMax = Math.max(...intervals);
+
+					stats.interval_analysis = {
+						interval_count: intervals.length,
+						mean_interval_ms: Math.round(intervalMean),
+						mean_interval_human:
+							DateTime.fromMillis(intervalMean).toRelative() ?? "Unknown",
+						min_interval_ms: intervalMin,
+						max_interval_ms: intervalMax,
+						total_intervals_span_ms: intervals.reduce(
+							(sum, val) => sum + val,
+							0,
+						),
+					};
+				}
+			} else {
+				// If both base_time and compare_time are provided, analyze durations
+				const durations: number[] = [];
+				const minLength = Math.min(baseTimes.length, compareTimes.length);
 
 				const compareTimezone =
 					validatedArgs.compare_time_timezone || validatedArgs.timezone;
 
-				// Parse compare times using utility function (allow invalid for pairwise operations)
-				const compareTimes = parseTimestamps(
-					validatedArgs.compare_time,
-					compareTimezone,
-					"compare_time",
-					plan.interaction_mode === "pairwise",
-				);
+				for (let i = 0; i < minLength; i++) {
+					const baseTimeStr = baseTimes[i];
+					const compareTimeStr = compareTimes[i];
 
-				// Update input to show the compare times properly (handle invalid DateTime objects)
-				result.input.compare_time =
-					compareTimes.length === 1
-						? compareTimes[0]?.toISO() ||
-							(validatedArgs.compare_time as string) ||
-							""
-						: compareTimes.map(
-								(dt, i) =>
-									dt.toISO() ||
-									(Array.isArray(validatedArgs.compare_time)
-										? validatedArgs.compare_time[i]
-										: validatedArgs.compare_time) ||
-									"",
-							);
+					if (!baseTimeStr || !compareTimeStr) {
+						continue;
+					}
 
-				// Handle different interaction modes for batch operations
-				const diffOperation = (baseTime: DateTime, compareTime: DateTime) => {
-					const diff = compareTime.diff(baseTime, [
-						"years",
-						"months",
-						"days",
-						"hours",
-						"minutes",
-						"seconds",
-						"milliseconds",
-					]);
-
-					const totalMs = compareTime.diff(baseTime).as("milliseconds");
-
-					if (validatedArgs.operation === "diff") {
-						// Simple diff in various units
-						return {
-							milliseconds: totalMs,
-							seconds: Math.floor(totalMs / 1000),
-							minutes: Math.floor(totalMs / (1000 * 60)),
-							hours: Math.floor(totalMs / (1000 * 60 * 60)),
-							days: Math.floor(totalMs / (1000 * 60 * 60 * 24)),
-						};
+					// Parse base time
+					const hasBaseTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(baseTimeStr);
+					let baseTime: DateTime;
+					if (parseTimezone && !hasBaseTimezone) {
+						baseTime = DateTime.fromISO(baseTimeStr, { zone: parseTimezone });
 					} else {
-						// Detailed duration breakdown
-						return {
-							years: Math.floor(diff.years),
-							months: Math.floor(diff.months),
-							days: Math.floor(diff.days),
-							hours: Math.floor(diff.hours),
-							minutes: Math.floor(diff.minutes),
-							seconds: Math.floor(diff.seconds),
-							milliseconds: diff.milliseconds,
-							total_milliseconds: totalMs,
-							human_readable: diff.toHuman(),
-						};
-					}
-				};
-
-				// Execute based on interaction mode
-				let diffResults: unknown[] = [];
-
-				switch (plan.interaction_mode) {
-					case "single_to_single":
-						if (baseTimes[0] && compareTimes[0]) {
-							diffResults = [diffOperation(baseTimes[0], compareTimes[0])];
-						}
-						break;
-					case "single_to_many":
-						diffResults = _executeSingleToMany(
-							baseTimes,
-							compareTimes,
-							diffOperation,
-						);
-						break;
-					case "many_to_single":
-						diffResults = _executeManyToSingle(
-							baseTimes,
-							compareTimes,
-							diffOperation,
-						);
-						break;
-					case "pairwise":
-						diffResults = _executePairwise(
-							baseTimes,
-							compareTimes,
-							diffOperation,
-						);
-						break;
-					case "cross_product":
-						diffResults = _executeCrossProduct(
-							baseTimes,
-							compareTimes,
-							diffOperation,
-						);
-						break;
-					default:
-						// Fallback to pairwise
-						diffResults = _executePairwise(
-							baseTimes,
-							compareTimes,
-							diffOperation,
-						);
-						break;
-				}
-
-				// Format result based on count
-				if (diffResults.length === 1) {
-					result.result = diffResults[0];
-				} else {
-					const batchResult: {
-						count: number;
-						results: unknown[];
-						interaction_mode: string;
-						batch_summary?: {
-							total_pairs: number;
-							successful_calculations: number;
-							failed_calculations: number;
-						};
-					} = {
-						count: diffResults.length,
-						results: diffResults,
-						interaction_mode: plan.interaction_mode,
-					};
-
-					// Add batch summary for pairwise operations
-					if (plan.interaction_mode === "pairwise") {
-						const errorResults = diffResults.filter(
-							(r) => typeof r === "object" && r && "error" in r,
-						);
-						const successResults = diffResults.filter(
-							(r) => typeof r === "object" && r && !("error" in r),
-						);
-
-						batchResult.batch_summary = {
-							total_pairs: diffResults.length,
-							successful_calculations: successResults.length,
-							failed_calculations: errorResults.length,
-						};
+						baseTime = DateTime.fromISO(baseTimeStr);
+						if (parseTimezone) baseTime = baseTime.setZone(parseTimezone);
 					}
 
-					result.result = batchResult;
-				}
-				break;
-			}
-
-			case "stats": {
-				// Stats operation requires arrays of times for meaningful analysis
-				if (!validatedArgs.base_time) {
-					throw new Error("stats operation requires base_time");
-				}
-
-				const baseTimes = safelyParseTimeArray(validatedArgs.base_time);
-				if (baseTimes.length < 2) {
-					throw new Error("stats operation requires at least 2 timestamps");
-				}
-				const compareTimes = validatedArgs.compare_time
-					? safelyParseTimeArray(validatedArgs.compare_time)
-					: undefined;
-
-				// Parse all base times
-				const baseTimestamps: number[] = [];
-				const parseTimezone = validatedArgs.timezone;
-
-				for (const timeStr of baseTimes) {
-					const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
-					let dt: DateTime;
-					if (parseTimezone && !hasTimezone) {
-						dt = DateTime.fromISO(timeStr, { zone: parseTimezone });
+					// Parse compare time
+					const hasCompareTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(
+						compareTimeStr,
+					);
+					let compareTime: DateTime;
+					if (compareTimezone && !hasCompareTimezone) {
+						compareTime = DateTime.fromISO(compareTimeStr, {
+							zone: compareTimezone,
+						});
 					} else {
-						dt = DateTime.fromISO(timeStr);
-						if (parseTimezone) dt = dt.setZone(parseTimezone);
-					}
-					if (!dt.isValid) {
-						throw new Error(`Invalid time format in base_time: ${timeStr}`);
-					}
-					baseTimestamps.push(dt.toMillis());
-				}
-
-				const stats: StatsResult = {
-					input_analysis: {
-						base_time_count: baseTimes.length,
-						compare_time_count: compareTimes?.length || 0,
-					},
-				};
-
-				// If only base_time is provided, analyze the timestamps themselves
-				if (!compareTimes || compareTimes.length === 0) {
-					if (baseTimestamps.length === 0) {
-						throw new Error("No valid timestamps found in base_time");
+						compareTime = DateTime.fromISO(compareTimeStr);
+						if (compareTimezone)
+							compareTime = compareTime.setZone(compareTimezone);
 					}
 
-					const sorted = [...baseTimestamps].sort((a, b) => a - b);
-					const min = sorted[0];
-					const max = sorted[sorted.length - 1];
-
-					if (min === undefined || max === undefined) {
-						throw new Error("Invalid timestamp data for stats calculation");
-					}
-
-					const mean =
-						baseTimestamps.reduce((sum, val) => sum + val, 0) /
-						baseTimestamps.length;
-
-					// Calculate median
-					const mid = Math.floor(sorted.length / 2);
-					const median =
-						sorted.length % 2 === 0
-							? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
-							: (sorted[mid] ?? 0);
-
-					// Calculate standard deviation
-					const variance =
-						baseTimestamps.reduce((sum, val) => sum + (val - mean) ** 2, 0) /
-						baseTimestamps.length;
-					const stdDev = Math.sqrt(variance);
-
-					// Calculate intervals between consecutive timestamps
-					const intervals: number[] = [];
-					for (let i = 1; i < sorted.length; i++) {
-						const current = sorted[i];
-						const previous = sorted[i - 1];
-						if (current !== undefined && previous !== undefined) {
-							intervals.push(current - previous);
-						}
-					}
-
-					stats.timestamp_analysis = {
-						earliest: DateTime.fromMillis(min).toISO() ?? "Invalid Date",
-						latest: DateTime.fromMillis(max).toISO() ?? "Invalid Date",
-						total_span_ms: max - min,
-						total_span_human: DateTime.fromMillis(max)
-							.diff(DateTime.fromMillis(min))
-							.toHuman(),
-						mean_timestamp: DateTime.fromMillis(mean).toISO() ?? "Invalid Date",
-						median_timestamp:
-							DateTime.fromMillis(median).toISO() ?? "Invalid Date",
-						std_deviation_ms: Math.round(stdDev),
-					};
-
-					if (intervals.length > 0) {
-						const intervalMean =
-							intervals.reduce((sum, val) => sum + val, 0) / intervals.length;
-						const intervalMin = Math.min(...intervals);
-						const intervalMax = Math.max(...intervals);
-
-						stats.interval_analysis = {
-							interval_count: intervals.length,
-							mean_interval_ms: Math.round(intervalMean),
-							mean_interval_human:
-								DateTime.fromMillis(intervalMean).toRelative() ?? "Unknown",
-							min_interval_ms: intervalMin,
-							max_interval_ms: intervalMax,
-							total_intervals_span_ms: intervals.reduce(
-								(sum, val) => sum + val,
-								0,
-							),
-						};
-					}
-				} else {
-					// If both base_time and compare_time are provided, analyze durations
-					const durations: number[] = [];
-					const minLength = Math.min(baseTimes.length, compareTimes.length);
-
-					const compareTimezone =
-						validatedArgs.compare_time_timezone || validatedArgs.timezone;
-
-					for (let i = 0; i < minLength; i++) {
-						const baseTimeStr = baseTimes[i];
-						const compareTimeStr = compareTimes[i];
-
-						if (!baseTimeStr || !compareTimeStr) {
-							continue;
-						}
-
-						// Parse base time
-						const hasBaseTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(baseTimeStr);
-						let baseTime: DateTime;
-						if (parseTimezone && !hasBaseTimezone) {
-							baseTime = DateTime.fromISO(baseTimeStr, { zone: parseTimezone });
-						} else {
-							baseTime = DateTime.fromISO(baseTimeStr);
-							if (parseTimezone) baseTime = baseTime.setZone(parseTimezone);
-						}
-
-						// Parse compare time
-						const hasCompareTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(
-							compareTimeStr,
-						);
-						let compareTime: DateTime;
-						if (compareTimezone && !hasCompareTimezone) {
-							compareTime = DateTime.fromISO(compareTimeStr, {
-								zone: compareTimezone,
-							});
-						} else {
-							compareTime = DateTime.fromISO(compareTimeStr);
-							if (compareTimezone)
-								compareTime = compareTime.setZone(compareTimezone);
-						}
-
-						if (!baseTime.isValid) {
-							throw new Error(
-								`Invalid base_time format at index ${i}: ${baseTimeStr}`,
-							);
-						}
-						if (!compareTime.isValid) {
-							throw new Error(
-								`Invalid compare_time format at index ${i}: ${compareTimeStr}`,
-							);
-						}
-
-						const duration = compareTime.diff(baseTime).milliseconds;
-						durations.push(duration);
-					}
-
-					// Calculate duration statistics
-					if (durations.length === 0) {
-						throw new Error("No valid duration pairs found");
-					}
-
-					const sortedDurations = [...durations].sort((a, b) => a - b);
-					const minDuration = sortedDurations[0];
-					const maxDuration = sortedDurations[sortedDurations.length - 1];
-
-					if (minDuration === undefined || maxDuration === undefined) {
-						throw new Error("Invalid duration data for stats calculation");
-					}
-
-					const meanDuration =
-						durations.reduce((sum, val) => sum + val, 0) / durations.length;
-
-					const mid = Math.floor(sortedDurations.length / 2);
-					const medianDuration =
-						sortedDurations.length % 2 === 0
-							? ((sortedDurations[mid - 1] ?? 0) +
-									(sortedDurations[mid] ?? 0)) /
-								2
-							: (sortedDurations[mid] ?? 0);
-
-					const varianceDuration =
-						durations.reduce((sum, val) => sum + (val - meanDuration) ** 2, 0) /
-						durations.length;
-					const stdDevDuration = Math.sqrt(varianceDuration);
-
-					stats.duration_analysis = {
-						pair_count: minLength,
-						min_duration_ms: minDuration,
-						min_duration_human:
-							DateTime.fromMillis(Math.abs(minDuration)).toRelative() ??
-							"Unknown",
-						max_duration_ms: maxDuration,
-						max_duration_human:
-							DateTime.fromMillis(Math.abs(maxDuration)).toRelative() ??
-							"Unknown",
-						mean_duration_ms: Math.round(meanDuration),
-						mean_duration_human:
-							DateTime.fromMillis(Math.abs(meanDuration)).toRelative() ??
-							"Unknown",
-						median_duration_ms: Math.round(medianDuration),
-						median_duration_human:
-							DateTime.fromMillis(Math.abs(medianDuration)).toRelative() ??
-							"Unknown",
-						std_deviation_ms: Math.round(stdDevDuration),
-						total_duration_ms: durations.reduce((sum, val) => sum + val, 0),
-					};
-				}
-
-				result.input.base_time = validatedArgs.base_time;
-				if (compareTimes) {
-					result.input.compare_time = compareTimes;
-				}
-				result.result = stats;
-				break;
-			}
-
-			case "sort": {
-				// Sort operation requires arrays of times
-				if (!validatedArgs.base_time) {
-					throw new Error("sort operation requires base_time");
-				}
-
-				const baseTimes = safelyParseTimeArray(validatedArgs.base_time);
-				if (baseTimes.length < 2) {
-					throw new Error("sort operation requires at least 2 timestamps");
-				}
-				const parseTimezone = validatedArgs.timezone;
-
-				// Parse all timestamps and create sortable objects
-				interface SortableTime {
-					original: string;
-					timestamp: number;
-					parsed: DateTime;
-				}
-
-				const sortableItems: SortableTime[] = [];
-
-				for (const timeStr of baseTimes) {
-					const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
-					let dt: DateTime;
-					if (parseTimezone && !hasTimezone) {
-						dt = DateTime.fromISO(timeStr, { zone: parseTimezone });
-					} else {
-						dt = DateTime.fromISO(timeStr);
-						if (parseTimezone) dt = dt.setZone(parseTimezone);
-					}
-
-					if (!dt.isValid) {
+					if (!baseTime.isValid) {
 						throw new Error(
-							`Invalid time format in base_time: ${timeStr} - ${dt.invalidReason}`,
+							`Invalid base_time format at index ${i}: ${baseTimeStr}`,
+						);
+					}
+					if (!compareTime.isValid) {
+						throw new Error(
+							`Invalid compare_time format at index ${i}: ${compareTimeStr}`,
 						);
 					}
 
-					sortableItems.push({
-						original: timeStr,
-						timestamp: dt.toMillis(),
-						parsed: dt,
-					});
+					const duration = compareTime.diff(baseTime).milliseconds;
+					durations.push(duration);
 				}
 
-				// Sort by timestamp (chronological order)
-				sortableItems.sort((a, b) => a.timestamp - b.timestamp);
-
-				// Extract sorted results
-				const sortedOriginal = sortableItems.map((item) => item.original);
-				const sortedISO = sortableItems.map((item) => item.parsed.toISO());
-				const sortedTimestamps = sortableItems.map((item) => item.timestamp);
-
-				// Calculate some useful metadata about the sort
-				const earliest = sortableItems[0];
-				const latest = sortableItems[sortableItems.length - 1];
-
-				if (!earliest || !latest) {
-					throw new Error("Invalid sortable items for metadata calculation");
+				// Calculate duration statistics
+				if (durations.length === 0) {
+					throw new Error("No valid duration pairs found");
 				}
 
-				const totalSpan = latest.timestamp - earliest.timestamp;
+				const sortedDurations = [...durations].sort((a, b) => a - b);
+				const minDuration = sortedDurations[0];
+				const maxDuration = sortedDurations[sortedDurations.length - 1];
 
-				const sortResult = {
-					input_count: baseTimes.length,
-					sorted_original_format: sortedOriginal,
-					sorted_iso_format: sortedISO,
-					sorted_timestamps: sortedTimestamps,
-					sort_metadata: {
-						earliest_time: earliest.parsed.toISO(),
-						latest_time: latest.parsed.toISO(),
-						total_span_ms: totalSpan,
-						total_span_human: DateTime.fromMillis(totalSpan).toRelative(),
-						timezone_used: parseTimezone || "system",
-					},
+				if (minDuration === undefined || maxDuration === undefined) {
+					throw new Error("Invalid duration data for stats calculation");
+				}
+
+				const meanDuration =
+					durations.reduce((sum, val) => sum + val, 0) / durations.length;
+
+				const mid = Math.floor(sortedDurations.length / 2);
+				const medianDuration =
+					sortedDurations.length % 2 === 0
+						? ((sortedDurations[mid - 1] ?? 0) + (sortedDurations[mid] ?? 0)) /
+							2
+						: (sortedDurations[mid] ?? 0);
+
+				const varianceDuration =
+					durations.reduce((sum, val) => sum + (val - meanDuration) ** 2, 0) /
+					durations.length;
+				const stdDevDuration = Math.sqrt(varianceDuration);
+
+				stats.duration_analysis = {
+					pair_count: minLength,
+					min_duration_ms: minDuration,
+					min_duration_human:
+						DateTime.fromMillis(Math.abs(minDuration)).toRelative() ??
+						"Unknown",
+					max_duration_ms: maxDuration,
+					max_duration_human:
+						DateTime.fromMillis(Math.abs(maxDuration)).toRelative() ??
+						"Unknown",
+					mean_duration_ms: Math.round(meanDuration),
+					mean_duration_human:
+						DateTime.fromMillis(Math.abs(meanDuration)).toRelative() ??
+						"Unknown",
+					median_duration_ms: Math.round(medianDuration),
+					median_duration_human:
+						DateTime.fromMillis(Math.abs(medianDuration)).toRelative() ??
+						"Unknown",
+					std_deviation_ms: Math.round(stdDevDuration),
+					total_duration_ms: durations.reduce((sum, val) => sum + val, 0),
 				};
-
-				result.input.base_time = validatedArgs.base_time;
-				result.result = sortResult;
-				break;
 			}
 
-			default:
-				throw new Error(`Unsupported operation: ${validatedArgs.operation}`);
+			result.input.base_time = validatedArgs.base_time;
+			if (compareTimes) {
+				result.input.compare_time = compareTimes;
+			}
+			result.result = stats;
+			break;
 		}
 
-		result.metadata = {
-			calculation_time: DateTime.now().toISO() || "",
-			calculation_timezone: DateTime.now().zoneName || "system",
-		};
+		case "sort": {
+			// Sort operation requires arrays of times
+			if (!validatedArgs.base_time) {
+				throw new Error("sort operation requires base_time");
+			}
 
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: JSON.stringify(result, null, 2),
+			const baseTimes = safelyParseTimeArray(validatedArgs.base_time);
+			if (baseTimes.length < 2) {
+				throw new Error("sort operation requires at least 2 timestamps");
+			}
+			const parseTimezone = validatedArgs.timezone;
+
+			// Parse all timestamps and create sortable objects
+			interface SortableTime {
+				original: string;
+				timestamp: number;
+				parsed: DateTime;
+			}
+
+			const sortableItems: SortableTime[] = [];
+
+			for (const timeStr of baseTimes) {
+				const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
+				let dt: DateTime;
+				if (parseTimezone && !hasTimezone) {
+					dt = DateTime.fromISO(timeStr, { zone: parseTimezone });
+				} else {
+					dt = DateTime.fromISO(timeStr);
+					if (parseTimezone) dt = dt.setZone(parseTimezone);
+				}
+
+				if (!dt.isValid) {
+					throw new Error(
+						`Invalid time format in base_time: ${timeStr} - ${dt.invalidReason}`,
+					);
+				}
+
+				sortableItems.push({
+					original: timeStr,
+					timestamp: dt.toMillis(),
+					parsed: dt,
+				});
+			}
+
+			// Sort by timestamp (chronological order)
+			sortableItems.sort((a, b) => a.timestamp - b.timestamp);
+
+			// Extract sorted results
+			const sortedOriginal = sortableItems.map((item) => item.original);
+			const sortedISO = sortableItems.map((item) => item.parsed.toISO());
+			const sortedTimestamps = sortableItems.map((item) => item.timestamp);
+
+			// Calculate some useful metadata about the sort
+			const earliest = sortableItems[0];
+			const latest = sortableItems[sortableItems.length - 1];
+
+			if (!earliest || !latest) {
+				throw new Error("Invalid sortable items for metadata calculation");
+			}
+
+			const totalSpan = latest.timestamp - earliest.timestamp;
+
+			const sortResult = {
+				input_count: baseTimes.length,
+				sorted_original_format: sortedOriginal,
+				sorted_iso_format: sortedISO,
+				sorted_timestamps: sortedTimestamps,
+				sort_metadata: {
+					earliest_time: earliest.parsed.toISO(),
+					latest_time: latest.parsed.toISO(),
+					total_span_ms: totalSpan,
+					total_span_human: DateTime.fromMillis(totalSpan).toRelative(),
+					timezone_used: parseTimezone || "system",
 				},
-			],
-		};
-	} catch (error) {
-		return {
-			content: [
-				{
-					type: "text" as const,
-					text: `Error in time calculation: ${error instanceof Error ? error.message : "Unknown error"}`,
-				},
-			],
-		};
+			};
+
+			result.input.base_time = validatedArgs.base_time;
+			result.result = sortResult;
+			break;
+		}
+
+		default:
+			return createErrorResponse(
+				validatedArgs.operation,
+				`Unsupported operation: ${validatedArgs.operation}`,
+			);
 	}
+
+	// Set metadata for successful response
+	result.metadata = {
+		calculation_time: DateTime.now().toISO() || "",
+		calculation_timezone: DateTime.now().zoneName || "system",
+	};
+
+	// Return the CalculationResult directly for backward compatibility
+	return {
+		content: [
+			{
+				type: "text" as const,
+				text: JSON.stringify(result, null, 2),
+			},
+		],
+	};
 }
