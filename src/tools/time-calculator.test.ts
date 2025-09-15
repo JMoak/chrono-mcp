@@ -639,6 +639,168 @@ describe("handleTimeCalculator", () => {
 					/pairwise mode requires both base_time and compare_time arrays/,
 				);
 			});
+
+			it("should handle individual invalid timestamps in pairwise batch", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "pairwise",
+					base_time: [
+						"2024-01-01T10:00:00Z",
+						"invalid-date-format", // This should fail
+						"2024-01-03T10:00:00Z",
+					],
+					compare_time: [
+						"2024-01-01T12:00:00Z",
+						"2024-01-02T12:00:00Z",
+						"2024-01-03T14:00:00Z",
+					],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.operation).toBe("diff");
+				expect(parsed.interaction_mode).toBe("pairwise");
+				expect(parsed.result.count).toBe(3);
+				expect(parsed.result.results).toHaveLength(3);
+
+				// First pair should succeed
+				expect(parsed.result.results[0].hours).toBe(2);
+
+				// Second pair should be an error object
+				expect(parsed.result.results[1]).toHaveProperty("error");
+				expect(parsed.result.results[1].index).toBe(1);
+				expect(parsed.result.results[1].error).toMatch(
+					/Invalid base_time at index 1/,
+				);
+
+				// Third pair should succeed
+				expect(parsed.result.results[2].hours).toBe(4);
+
+				// Batch summary should be present
+				expect(parsed.result.batch_summary).toBeDefined();
+				expect(parsed.result.batch_summary.total_pairs).toBe(3);
+				expect(parsed.result.batch_summary.successful_calculations).toBe(2);
+				expect(parsed.result.batch_summary.failed_calculations).toBe(1);
+			});
+
+			it("should handle invalid timestamps in compare_time array", async () => {
+				const result = await handleTimeCalculator({
+					operation: "duration_between",
+					interaction_mode: "pairwise",
+					base_time: [
+						"2024-01-01T10:00:00Z",
+						"2024-01-02T10:00:00Z",
+						"2024-01-03T10:00:00Z",
+					],
+					compare_time: [
+						"2024-01-01T12:00:00Z",
+						"definitely-not-a-date", // This should fail
+						"2024-01-03T15:30:00Z",
+					],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.operation).toBe("duration_between");
+				expect(parsed.interaction_mode).toBe("pairwise");
+				expect(parsed.result.count).toBe(3);
+
+				// First result should succeed
+				expect(parsed.result.results[0].hours).toBe(2);
+
+				// Second result should be error
+				expect(parsed.result.results[1]).toHaveProperty("error");
+				expect(parsed.result.results[1].index).toBe(1);
+				expect(parsed.result.results[1].error).toMatch(
+					/Invalid compare_time at index 1/,
+				);
+
+				// Third result should succeed
+				expect(parsed.result.results[2].hours).toBe(5);
+				expect(parsed.result.results[2].minutes).toBe(30);
+
+				// Check batch summary
+				expect(parsed.result.batch_summary.successful_calculations).toBe(2);
+				expect(parsed.result.batch_summary.failed_calculations).toBe(1);
+			});
+
+			it("should handle multiple invalid timestamps in same batch", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "pairwise",
+					base_time: [
+						"invalid-base-1",
+						"2024-01-02T10:00:00Z",
+						"invalid-base-2",
+					],
+					compare_time: [
+						"2024-01-01T12:00:00Z",
+						"invalid-compare",
+						"2024-01-03T15:00:00Z",
+					],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.result.count).toBe(3);
+				expect(parsed.result.results).toHaveLength(3);
+
+				// All should be errors since at least one timestamp in each pair is invalid
+				expect(parsed.result.results[0]).toHaveProperty("error");
+				expect(parsed.result.results[1]).toHaveProperty("error");
+				expect(parsed.result.results[2]).toHaveProperty("error");
+
+				// Batch summary should show all failed
+				expect(parsed.result.batch_summary.total_pairs).toBe(3);
+				expect(parsed.result.batch_summary.successful_calculations).toBe(0);
+				expect(parsed.result.batch_summary.failed_calculations).toBe(3);
+			});
+
+			it("should handle completely successful pairwise batch with summary", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "pairwise",
+					base_time: [
+						"2024-01-01T09:00:00Z",
+						"2024-01-02T11:00:00Z",
+						"2024-01-03T13:00:00Z",
+						"2024-01-04T15:00:00Z",
+					],
+					compare_time: [
+						"2024-01-01T10:00:00Z", // 1 hour
+						"2024-01-02T13:00:00Z", // 2 hours
+						"2024-01-03T16:00:00Z", // 3 hours
+						"2024-01-04T19:00:00Z", // 4 hours
+					],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.result.count).toBe(4);
+				expect(parsed.result.results[0].hours).toBe(1);
+				expect(parsed.result.results[1].hours).toBe(2);
+				expect(parsed.result.results[2].hours).toBe(3);
+				expect(parsed.result.results[3].hours).toBe(4);
+
+				// All should succeed
+				expect(parsed.result.batch_summary.total_pairs).toBe(4);
+				expect(parsed.result.batch_summary.successful_calculations).toBe(4);
+				expect(parsed.result.batch_summary.failed_calculations).toBe(0);
+			});
+
+			it("should not include batch_summary for non-pairwise modes", async () => {
+				const result = await handleTimeCalculator({
+					operation: "diff",
+					interaction_mode: "single_to_many",
+					base_time: "2024-01-01T12:00:00Z",
+					compare_time: ["2024-01-01T15:00:00Z", "2024-01-01T18:00:00Z"],
+				});
+
+				const parsed = parseResult(result);
+
+				expect(parsed.result.count).toBe(2);
+				expect(parsed.result.batch_summary).toBeUndefined();
+			});
 		});
 	});
 });

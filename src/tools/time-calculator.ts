@@ -129,6 +129,7 @@ function parseTimestamps(
 	times: string | string[] | undefined,
 	timezone?: string,
 	fieldName: string = "time",
+	allowInvalid: boolean = false,
 ): DateTime[] {
 	const timesArray = safelyParseTimeArray(times);
 
@@ -149,7 +150,7 @@ function parseTimestamps(
 			}
 		}
 
-		if (!dt.isValid) {
+		if (!dt.isValid && !allowInvalid) {
 			throw new Error(
 				`Invalid ${fieldName} format: ${timeStr} - ${dt.invalidReason}`,
 			);
@@ -269,9 +270,40 @@ function _executePairwise(
 	for (let i = 0; i < minLength; i++) {
 		const baseTime = baseTimes[i];
 		const compareTime = compareTimes[i];
+
 		if (baseTime && compareTime) {
-			const result = operation(baseTime, compareTime);
-			results.push(result);
+			try {
+				if (!baseTime.isValid) {
+					throw new Error(
+						`Invalid base_time at index ${i}: ${baseTime.invalidReason}`,
+					);
+				}
+				if (!compareTime.isValid) {
+					throw new Error(
+						`Invalid compare_time at index ${i}: ${compareTime.invalidReason}`,
+					);
+				}
+
+				const result = operation(baseTime, compareTime);
+				results.push(result);
+			} catch (error) {
+				results.push({
+					error:
+						error instanceof Error
+							? error.message
+							: "Unknown calculation error",
+					index: i,
+					base_time: baseTime.toISO() || "Invalid DateTime",
+					compare_time: compareTime.toISO() || "Invalid DateTime",
+				});
+			}
+		} else {
+			results.push({
+				error: "Missing timestamp",
+				index: i,
+				base_time: baseTime?.toISO() || "undefined",
+				compare_time: compareTime?.toISO() || "undefined",
+			});
 		}
 	}
 
@@ -571,11 +603,16 @@ export async function handleTimeCalculator(args: unknown) {
 			validatedArgs.interaction_mode || "auto_detect",
 		);
 
-		// Parse base times using utility function
+		// Parse base times using utility function (allow invalid for pairwise operations)
+		const allowInvalidTimestamps =
+			plan.interaction_mode === "pairwise" &&
+			(validatedArgs.operation === "diff" ||
+				validatedArgs.operation === "duration_between");
 		const baseTimes = parseTimestamps(
 			validatedArgs.base_time,
 			validatedArgs.timezone,
 			"base_time",
+			allowInvalidTimestamps,
 		);
 
 		interface CalculationResult {
@@ -600,8 +637,15 @@ export async function handleTimeCalculator(args: unknown) {
 			input: {
 				base_time:
 					baseTimes.length === 1
-						? baseTimes[0]?.toISO() || ""
-						: baseTimes.map((dt) => dt.toISO() || ""),
+						? baseTimes[0]?.toISO() || (validatedArgs.base_time as string) || ""
+						: baseTimes.map(
+								(dt, i) =>
+									dt.toISO() ||
+									(Array.isArray(validatedArgs.base_time)
+										? validatedArgs.base_time[i]
+										: validatedArgs.base_time) ||
+									"",
+							),
 			},
 			result: null,
 			metadata: {
@@ -709,18 +753,28 @@ export async function handleTimeCalculator(args: unknown) {
 				const compareTimezone =
 					validatedArgs.compare_time_timezone || validatedArgs.timezone;
 
-				// Parse compare times using utility function
+				// Parse compare times using utility function (allow invalid for pairwise operations)
 				const compareTimes = parseTimestamps(
 					validatedArgs.compare_time,
 					compareTimezone,
 					"compare_time",
+					plan.interaction_mode === "pairwise",
 				);
 
-				// Update input to show the compare times properly
+				// Update input to show the compare times properly (handle invalid DateTime objects)
 				result.input.compare_time =
 					compareTimes.length === 1
-						? compareTimes[0]?.toISO() || ""
-						: compareTimes.map((dt) => dt.toISO() || "");
+						? compareTimes[0]?.toISO() ||
+							(validatedArgs.compare_time as string) ||
+							""
+						: compareTimes.map(
+								(dt, i) =>
+									dt.toISO() ||
+									(Array.isArray(validatedArgs.compare_time)
+										? validatedArgs.compare_time[i]
+										: validatedArgs.compare_time) ||
+									"",
+							);
 
 				// Handle different interaction modes for batch operations
 				const diffOperation = (baseTime: DateTime, compareTime: DateTime) => {
@@ -812,11 +866,38 @@ export async function handleTimeCalculator(args: unknown) {
 				if (diffResults.length === 1) {
 					result.result = diffResults[0];
 				} else {
-					result.result = {
+					const batchResult: {
+						count: number;
+						results: unknown[];
+						interaction_mode: string;
+						batch_summary?: {
+							total_pairs: number;
+							successful_calculations: number;
+							failed_calculations: number;
+						};
+					} = {
 						count: diffResults.length,
 						results: diffResults,
 						interaction_mode: plan.interaction_mode,
 					};
+
+					// Add batch summary for pairwise operations
+					if (plan.interaction_mode === "pairwise") {
+						const errorResults = diffResults.filter(
+							(r) => typeof r === "object" && r && "error" in r,
+						);
+						const successResults = diffResults.filter(
+							(r) => typeof r === "object" && r && !("error" in r),
+						);
+
+						batchResult.batch_summary = {
+							total_pairs: diffResults.length,
+							successful_calculations: successResults.length,
+							failed_calculations: errorResults.length,
+						};
+					}
+
+					result.result = batchResult;
 				}
 				break;
 			}
