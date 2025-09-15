@@ -12,6 +12,46 @@ A comprehensive Model Context Protocol (MCP) server providing advanced date, tim
 [![MCP Server](https://img.shields.io/badge/MCP-Server-0b7285)](https://modelcontextprotocol.io/)
 [![Powered by Luxon](https://img.shields.io/badge/Powered%20by-Luxon-0a3d62)](https://github.com/moment/luxon)
 
+## Quick Start
+
+```bash
+npx @jmoak/chrono-mcp
+```
+## MCP Client Configuration
+
+Configure your MCP client to launch `chrono-mcp` via `npx`. Below are client-specific examples.
+
+### Claude Code
+
+Ask Claude! Here's the configuration:
+
+```jsonc
+{
+  "mcpServers": {
+    "chrono-mcp": {
+      "command": "npx",
+      "args": ["-y", "@jmoak/chrono-mcp@latest"]
+    }
+  }
+}
+```
+
+### Cursor
+
+Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-protocol#configuring-mcp-servers)
+
+```jsonc
+{
+  "mcpServers": {
+    "chrono-mcp": {
+      "command": "npx",
+      "args": ["-y", "@jmoak/chrono-mcp@latest"]
+    }
+  }
+}
+```
+
+
 ## Features
 
 - **Global Timezone Support** - Work with all IANA timezone identifiers
@@ -21,30 +61,6 @@ A comprehensive Model Context Protocol (MCP) server providing advanced date, tim
 - **Real-time** - Current time retrieval with microsecond precision
 - **Easy Integration** - Standard MCP protocol for seamless AI agent integration
 - **Token-Optimized Output** - Dynamically shaped responses that maximize information density while minimizing token usage for efficient AI interactions
-
-## Installation
-
-```bash
-npm install @jmoak/chrono-mcp
-```
-
-Or run directly with npx:
-
-```bash
-npx @jmoak/chrono-mcp
-```
-
-## Quick Start
-
-### Production Usage
-
-The server communicates over stdio following MCP conventions:
-
-```bash
-node dist/index.js
-# or
-npx @jmoak/chrono-mcp
-```
 
 ## Available Tools
 
@@ -120,21 +136,6 @@ Perform time arithmetic operations including duration calculations and date math
   "timezone": "America/New_York",
   "target_time": "2024-12-25T18:00:00",
   "target_time_timezone": "Europe/London"
-}
-```
-
-## MCP Client Configuration
-
-Add to your MCP client configuration:
-
-```jsonc
-{
-  "mcpServers": {
-    "chrono-mcp": {
-      "command": "npx",
-      "args": ["chrono-mcp"]
-    }
-  }
 }
 ```
 
