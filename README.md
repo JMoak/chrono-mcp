@@ -64,7 +64,7 @@ Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-proto
 
 ## Available Tools
 
-### GET_TIME
+### GET TIME
 
 Get current time or convert times across timezones with flexible formatting.
 
@@ -75,26 +75,27 @@ Get current time or convert times across timezones with flexible formatting.
 - `locale` (string, optional): Locale for formatting (e.g., `en-US`, `fr-FR`, `ja-JP`)
 - `includeOffsets` (boolean, optional): Include UTC offsets in output
 
-**Examples:**
-```jsonc
-// Get current time
-{}
+**Example:**
 
-// Multiple timezones
+Input
+```json
 {
-  "timezones": ["America/New_York", "Asia/Tokyo", "Europe/London"]
-}
-
-// Specific time with formatting
-{
-  "datetime": "2024-12-25T15:00:00",
-  "formats": ["iso", "localeString"],
-  "timezones": ["America/Los_Angeles", "Asia/Tokyo"],
+  "datetime": "2024-01-01T12:00:00Z",
+  "timezones": ["America/New_York", "Asia/Tokyo"],
   "includeOffsets": true
 }
 ```
 
-### TIME_CALCULATOR
+Output
+```json
+{
+  "baseTime": "2024-01-01T12:00:00.000Z",
+  "America/New_York": "2024-01-01T07:00:00.000-05:00",
+  "Asia/Tokyo": "2024-01-01T21:00:00.000+09:00"
+}
+```
+
+### TIME CALCULATOR
 
 Perform time arithmetic operations including duration calculations and date math.
 
@@ -103,39 +104,41 @@ Perform time arithmetic operations including duration calculations and date math
 - `subtract` - Subtract duration from a datetime
 - `diff` - Calculate simple difference in various units
 - `duration_between` - Detailed duration breakdown between two times
+- `stats` - Statistical analysis of time series and durations
+- `sort` - Sort timestamps chronologically
 
 **Parameters:**
 - `operation` (required): Type of calculation
-- `base_time` (optional): Base datetime (ISO format). Defaults to current time
-- `target_time` (optional): Target datetime for diff operations
-- `timezone` (optional): Timezone for base_time
-- `target_time_timezone` (optional): Timezone for target_time
+- `interaction_mode` (optional): `auto_detect` | `single_to_many` | `many_to_single` | `pairwise` | `cross_product` | `aggregate`. Defaults to `auto_detect`.
+- `base_time` (optional): Base ISO datetime(s). String or array. Defaults to current time.
+- `compare_time` (optional): Compare ISO datetime(s) for `diff`/`duration_between`. String or array.
+- `timezone` (optional): Timezone for `base_time`
+- `compare_time_timezone` (optional): Timezone for `compare_time`
 - `years`, `months`, `days`, `hours`, `minutes`, `seconds` (optional): Duration values
 
-**Examples:**
-```jsonc
-// Add 5 days and 3 hours
+**Example:**
+
+Input
+```json
 {
   "operation": "add",
   "base_time": "2024-12-25T10:00:00Z",
   "days": 5,
   "hours": 3
 }
+```
 
-// Calculate difference between dates
+Output
+```json
 {
-  "operation": "diff",
-  "base_time": "2024-01-01T00:00:00Z",
-  "target_time": "2024-12-25T15:30:00Z"
-}
-
-// Multi-timezone duration
-{
-  "operation": "duration_between",
-  "base_time": "2024-12-25T09:00:00",
-  "timezone": "America/New_York",
-  "target_time": "2024-12-25T18:00:00",
-  "target_time_timezone": "Europe/London"
+  "operation": "add",
+  "interaction_mode": "single_to_single",
+  "input": {
+    "base_time": "2024-12-25T10:00:00.000Z",
+    "duration": { "days": 5, "hours": 3 }
+  },
+  "result": "2024-12-30T13:00:00.000Z",
+  "result_timezone": "UTC"
 }
 ```
 
