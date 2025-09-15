@@ -14,7 +14,7 @@ import {
 } from "./tools/time-calculator.js";
 
 const server = new Server(
-	{ name: "chrono-mcp", version: "0.1.0" },
+	{ name: "chrono-mcp", version: "0.2.0" },
 	{ capabilities: { tools: {} } },
 );
 
