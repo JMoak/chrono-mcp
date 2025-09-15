@@ -843,7 +843,9 @@ export async function handleTimeCalculator(args: unknown) {
 				result.input.compare_time =
 					compareTimesResult.data.length === 1
 						? compareTimesResult.data[0]?.toISO() || ""
-						: compareTimesResult.data.map((dt) => dt.toISO() || "Invalid timestamp");
+						: compareTimesResult.data.map(
+								(dt) => dt.toISO() || "Invalid timestamp",
+							);
 			}
 
 			result.input.duration = duration;
