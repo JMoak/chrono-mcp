@@ -745,14 +745,15 @@ export async function handleTimeCalculator(args: unknown) {
 			base_time:
 				baseTimes.length === 1
 					? baseTimes[0]?.toISO() || (validatedArgs.base_time as string) || ""
-					: baseTimes.map(
-							(dt, i) =>
-								dt.toISO() ||
-								(Array.isArray(validatedArgs.base_time)
-									? validatedArgs.base_time[i]
-									: validatedArgs.base_time) ||
-								"",
-						),
+					: baseTimes.map((dt, _i) => {
+							// Try to get ISO string from parsed DateTime first
+							const isoString = dt?.toISO();
+							if (isoString) {
+								return isoString;
+							}
+							// If parsing failed, return a placeholder
+							return "Invalid timestamp";
+						}),
 		},
 		result: null,
 	};
@@ -842,7 +843,7 @@ export async function handleTimeCalculator(args: unknown) {
 				result.input.compare_time =
 					compareTimesResult.data.length === 1
 						? compareTimesResult.data[0]?.toISO() || ""
-						: compareTimesResult.data.map((dt) => dt.toISO() || "");
+						: compareTimesResult.data.map((dt) => dt.toISO() || "Invalid timestamp");
 			}
 
 			result.input.duration = duration;
@@ -904,14 +905,15 @@ export async function handleTimeCalculator(args: unknown) {
 					? compareTimes[0]?.toISO() ||
 						(validatedArgs.compare_time as string) ||
 						""
-					: compareTimes.map(
-							(dt, i) =>
-								dt.toISO() ||
-								(Array.isArray(validatedArgs.compare_time)
-									? validatedArgs.compare_time[i]
-									: validatedArgs.compare_time) ||
-								"",
-						);
+					: compareTimes.map((dt, _i) => {
+							// Try to get ISO string from parsed DateTime first
+							const isoString = dt?.toISO();
+							if (isoString) {
+								return isoString;
+							}
+							// If parsing failed, return a placeholder
+							return "Invalid timestamp";
+						});
 
 			// Handle different interaction modes for batch operations
 			const diffOperation = (baseTime: DateTime, compareTime: DateTime) => {
