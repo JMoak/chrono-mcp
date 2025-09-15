@@ -1,6 +1,8 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { DateTime } from "luxon";
 import { z } from "zod";
+import { configManager } from "../utils/config.js";
+import { formatDuration } from "../utils/date-utils.js";
 
 const MAX_OPERATIONS = 10000;
 
@@ -10,7 +12,7 @@ interface TimeCalculatorResponse {
 	result?: unknown;
 	error?: string;
 	warnings?: string[];
-	metadata: {
+	metadata?: {
 		calculation_time: string;
 		calculation_timezone: string;
 		processed_count?: number;
@@ -38,15 +40,20 @@ function createResponse(response: TimeCalculatorResponse) {
 }
 
 function createErrorResponse(operation: string, error: string) {
-	return createResponse({
+	const response: TimeCalculatorResponse = {
 		success: false,
 		operation,
 		error,
-		metadata: {
+	};
+
+	if (configManager.isDebugMode()) {
+		response.metadata = {
 			calculation_time: DateTime.now().toISO() || "",
 			calculation_timezone: DateTime.now().zoneName || "system",
-		},
-	});
+		};
+	}
+
+	return createResponse(response);
 }
 
 interface OperationPlan {
@@ -725,7 +732,7 @@ export async function handleTimeCalculator(args: unknown) {
 		};
 		result: unknown;
 		result_timezone?: string;
-		metadata: {
+		metadata?: {
 			calculation_time: string;
 			calculation_timezone: string;
 		};
@@ -748,10 +755,6 @@ export async function handleTimeCalculator(args: unknown) {
 						),
 		},
 		result: null,
-		metadata: {
-			calculation_time: "",
-			calculation_timezone: "",
-		},
 	};
 
 	switch (validatedArgs.operation) {
@@ -856,6 +859,7 @@ export async function handleTimeCalculator(args: unknown) {
 				const shouldReturnSingle = baseTimes.length === 1;
 				if (shouldReturnSingle) {
 					result.result = formatResults(baseResults.data, true);
+					// Always show result_timezone for single results since metadata is hidden in normal mode
 					result.result_timezone = baseResults.data[0]?.zoneName || "unknown";
 				} else {
 					result.result = formatResults(baseResults.data, false);
@@ -924,16 +928,17 @@ export async function handleTimeCalculator(args: unknown) {
 				const totalMs = compareTime.diff(baseTime).as("milliseconds");
 
 				if (validatedArgs.operation === "diff") {
-					// Simple diff in various units
+					// Decomposed time units that add up to the total time difference
 					return {
-						milliseconds: totalMs,
-						seconds: Math.floor(totalMs / 1000),
-						minutes: Math.floor(totalMs / (1000 * 60)),
-						hours: Math.floor(totalMs / (1000 * 60 * 60)),
-						days: Math.floor(totalMs / (1000 * 60 * 60 * 24)),
+						days: Math.floor(diff.days),
+						hours: Math.floor(diff.hours),
+						minutes: Math.floor(diff.minutes),
+						seconds: Math.floor(diff.seconds),
+						milliseconds: Math.floor(diff.milliseconds),
+						total_milliseconds: totalMs,
 					};
 				} else {
-					// Detailed duration breakdown
+					// Detailed duration breakdown with years/months
 					return {
 						years: Math.floor(diff.years),
 						months: Math.floor(diff.months),
@@ -941,7 +946,7 @@ export async function handleTimeCalculator(args: unknown) {
 						hours: Math.floor(diff.hours),
 						minutes: Math.floor(diff.minutes),
 						seconds: Math.floor(diff.seconds),
-						milliseconds: diff.milliseconds,
+						milliseconds: Math.floor(diff.milliseconds),
 						total_milliseconds: totalMs,
 						human_readable: diff.toHuman(),
 					};
@@ -1003,32 +1008,11 @@ export async function handleTimeCalculator(args: unknown) {
 					count: number;
 					results: unknown[];
 					interaction_mode: string;
-					batch_summary?: {
-						total_pairs: number;
-						successful_calculations: number;
-						failed_calculations: number;
-					};
 				} = {
 					count: diffResults.length,
 					results: diffResults,
 					interaction_mode: plan.interaction_mode,
 				};
-
-				// Add batch summary for pairwise operations
-				if (plan.interaction_mode === "pairwise") {
-					const errorResults = diffResults.filter(
-						(r) => typeof r === "object" && r && "error" in r,
-					);
-					const successResults = diffResults.filter(
-						(r) => typeof r === "object" && r && !("error" in r),
-					);
-
-					batchResult.batch_summary = {
-						total_pairs: diffResults.length,
-						successful_calculations: successResults.length,
-						failed_calculations: errorResults.length,
-					};
-				}
 
 				result.result = batchResult;
 			}
@@ -1120,9 +1104,7 @@ export async function handleTimeCalculator(args: unknown) {
 					earliest: DateTime.fromMillis(min).toISO() ?? "Invalid Date",
 					latest: DateTime.fromMillis(max).toISO() ?? "Invalid Date",
 					total_span_ms: max - min,
-					total_span_human: DateTime.fromMillis(max)
-						.diff(DateTime.fromMillis(min))
-						.toHuman(),
+					total_span_human: formatDuration(max - min),
 					mean_timestamp: DateTime.fromMillis(mean).toISO() ?? "Invalid Date",
 					median_timestamp:
 						DateTime.fromMillis(median).toISO() ?? "Invalid Date",
@@ -1138,8 +1120,7 @@ export async function handleTimeCalculator(args: unknown) {
 					stats.interval_analysis = {
 						interval_count: intervals.length,
 						mean_interval_ms: Math.round(intervalMean),
-						mean_interval_human:
-							DateTime.fromMillis(intervalMean).toRelative() ?? "Unknown",
+						mean_interval_human: formatDuration(Math.round(intervalMean)),
 						min_interval_ms: intervalMin,
 						max_interval_ms: intervalMax,
 						total_intervals_span_ms: intervals.reduce(
@@ -1235,21 +1216,13 @@ export async function handleTimeCalculator(args: unknown) {
 				stats.duration_analysis = {
 					pair_count: minLength,
 					min_duration_ms: minDuration,
-					min_duration_human:
-						DateTime.fromMillis(Math.abs(minDuration)).toRelative() ??
-						"Unknown",
+					min_duration_human: formatDuration(minDuration),
 					max_duration_ms: maxDuration,
-					max_duration_human:
-						DateTime.fromMillis(Math.abs(maxDuration)).toRelative() ??
-						"Unknown",
+					max_duration_human: formatDuration(maxDuration),
 					mean_duration_ms: Math.round(meanDuration),
-					mean_duration_human:
-						DateTime.fromMillis(Math.abs(meanDuration)).toRelative() ??
-						"Unknown",
+					mean_duration_human: formatDuration(Math.round(meanDuration)),
 					median_duration_ms: Math.round(medianDuration),
-					median_duration_human:
-						DateTime.fromMillis(Math.abs(medianDuration)).toRelative() ??
-						"Unknown",
+					median_duration_human: formatDuration(Math.round(medianDuration)),
 					std_deviation_ms: Math.round(stdDevDuration),
 					total_duration_ms: durations.reduce((sum, val) => sum + val, 0),
 				};
@@ -1351,11 +1324,13 @@ export async function handleTimeCalculator(args: unknown) {
 			);
 	}
 
-	// Set metadata for successful response
-	result.metadata = {
-		calculation_time: DateTime.now().toISO() || "",
-		calculation_timezone: DateTime.now().zoneName || "system",
-	};
+	// Set metadata for successful response only if debug mode is enabled
+	if (configManager.isDebugMode()) {
+		result.metadata = {
+			calculation_time: DateTime.now().toISO() || "",
+			calculation_timezone: DateTime.now().zoneName || "system",
+		};
+	}
 
 	// Return the CalculationResult directly for backward compatibility
 	return {

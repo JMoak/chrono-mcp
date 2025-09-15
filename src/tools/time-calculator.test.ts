@@ -1,5 +1,6 @@
 import { DateTime, Settings, type Zone } from "luxon";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { configManager } from "../utils/config.js";
 import { handleTimeCalculator } from "./time-calculator.js";
 
 function parseResult(result: Awaited<ReturnType<typeof handleTimeCalculator>>) {
@@ -53,6 +54,8 @@ describe("handleTimeCalculator", () => {
 			});
 			expect(parsed.result).toBe("2025-03-20T08:30:45.000-04:00");
 			expect(parsed.result_timezone).toBe("America/New_York");
+			// metadata should not be present in normal mode
+			expect(parsed.metadata).toBeUndefined();
 		});
 
 		it("should add time to current time when no base_time provided", async () => {
@@ -105,6 +108,8 @@ describe("handleTimeCalculator", () => {
 			});
 			expect(parsed.result).toBe("2023-09-15T05:15:15.000-04:00");
 			expect(parsed.result_timezone).toBe("America/New_York");
+			// metadata should not be present in normal mode
+			expect(parsed.metadata).toBeUndefined();
 		});
 
 		it("should subtract time with timezone context", async () => {
@@ -125,6 +130,8 @@ describe("handleTimeCalculator", () => {
 			});
 			expect(parsed.result_timezone).toBe("America/New_York");
 			expect(parsed.result).toBe("2024-05-10T14:00:00.000-04:00");
+			// metadata should not be present in normal mode
+			expect(parsed.metadata).toBeUndefined();
 		});
 
 		it("should add time to multiple base times (bulk operation)", async () => {
@@ -191,7 +198,7 @@ describe("handleTimeCalculator", () => {
 	});
 
 	describe("diff operation", () => {
-		it("should calculate difference between two dates in various units", async () => {
+		it("should calculate difference between two dates in decomposed units", async () => {
 			const result = await handleTimeCalculator({
 				operation: "diff",
 				base_time: "2024-01-01T06:00:00Z",
@@ -204,21 +211,21 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.input.base_time).toBe("2024-01-01T01:00:00.000-05:00");
 			expect(parsed.input.compare_time).toBe("2024-01-08T13:30:45.000-05:00");
 
-			// 7 days, 12 hours, 30 minutes, 45 seconds = 671445000 milliseconds
-			const expectedMs =
+			// Should return decomposed time units that add up to the total
+			// 7 days, 12 hours, 30 minutes, 45 seconds
+			expect(parsed.result.days).toBe(7);
+			expect(parsed.result.hours).toBe(12);
+			expect(parsed.result.minutes).toBe(30);
+			expect(parsed.result.seconds).toBe(45);
+			expect(parsed.result.milliseconds).toBe(0);
+
+			// Should also include total milliseconds for reference
+			const expectedTotalMs =
 				7 * 24 * 60 * 60 * 1000 +
 				12 * 60 * 60 * 1000 +
 				30 * 60 * 1000 +
 				45 * 1000;
-			expect(parsed.result.milliseconds).toBe(expectedMs);
-			expect(parsed.result.seconds).toBe(Math.floor(expectedMs / 1000));
-			expect(parsed.result.minutes).toBe(Math.floor(expectedMs / (1000 * 60)));
-			expect(parsed.result.hours).toBe(
-				Math.floor(expectedMs / (1000 * 60 * 60)),
-			);
-			expect(parsed.result.days).toBe(
-				Math.floor(expectedMs / (1000 * 60 * 60 * 24)),
-			);
+			expect(parsed.result.total_milliseconds).toBe(expectedTotalMs);
 		});
 
 		it("should handle negative differences when target is before base", async () => {
@@ -234,7 +241,7 @@ describe("handleTimeCalculator", () => {
 			// This should be a negative difference
 			expect(parsed.result.days).toBeLessThan(0);
 			expect(parsed.result.hours).toBeLessThan(0);
-			expect(parsed.result.milliseconds).toBeLessThan(0);
+			expect(parsed.result.total_milliseconds).toBeLessThan(0);
 		});
 	});
 
@@ -275,7 +282,8 @@ describe("handleTimeCalculator", () => {
 			const parsed = parseResult(result);
 
 			expect(parsed.operation).toBe("duration_between");
-			expect(parsed.metadata.calculation_timezone).toBeDefined();
+			// metadata should not be present in normal mode
+			expect(parsed.metadata).toBeUndefined();
 			expect(parsed.result.hours).toBe(1);
 			expect(parsed.result.human_readable).toBe(
 				"0 years, 0 months, 0 days, 1 hour, 0 minutes, 0 seconds, 0 milliseconds",
@@ -476,7 +484,8 @@ describe("handleTimeCalculator", () => {
 
 			const parsed = parseResult(result);
 
-			expect(parsed.metadata.calculation_timezone).toBeDefined();
+			// metadata should not be present in normal mode
+			expect(parsed.metadata).toBeUndefined();
 			expect(parsed.result.hours).toBe(1);
 		});
 	});
@@ -675,12 +684,6 @@ describe("handleTimeCalculator", () => {
 
 				// Third pair should succeed
 				expect(parsed.result.results[2].hours).toBe(4);
-
-				// Batch summary should be present
-				expect(parsed.result.batch_summary).toBeDefined();
-				expect(parsed.result.batch_summary.total_pairs).toBe(3);
-				expect(parsed.result.batch_summary.successful_calculations).toBe(2);
-				expect(parsed.result.batch_summary.failed_calculations).toBe(1);
 			});
 
 			it("should handle invalid timestamps in compare_time array", async () => {
@@ -718,10 +721,6 @@ describe("handleTimeCalculator", () => {
 				// Third result should succeed
 				expect(parsed.result.results[2].hours).toBe(5);
 				expect(parsed.result.results[2].minutes).toBe(30);
-
-				// Check batch summary
-				expect(parsed.result.batch_summary.successful_calculations).toBe(2);
-				expect(parsed.result.batch_summary.failed_calculations).toBe(1);
 			});
 
 			it("should handle multiple invalid timestamps in same batch", async () => {
@@ -749,14 +748,9 @@ describe("handleTimeCalculator", () => {
 				expect(parsed.result.results[0]).toHaveProperty("error");
 				expect(parsed.result.results[1]).toHaveProperty("error");
 				expect(parsed.result.results[2]).toHaveProperty("error");
-
-				// Batch summary should show all failed
-				expect(parsed.result.batch_summary.total_pairs).toBe(3);
-				expect(parsed.result.batch_summary.successful_calculations).toBe(0);
-				expect(parsed.result.batch_summary.failed_calculations).toBe(3);
 			});
 
-			it("should handle completely successful pairwise batch with summary", async () => {
+			it("should handle completely successful pairwise batch", async () => {
 				const result = await handleTimeCalculator({
 					operation: "diff",
 					interaction_mode: "pairwise",
@@ -781,14 +775,9 @@ describe("handleTimeCalculator", () => {
 				expect(parsed.result.results[1].hours).toBe(2);
 				expect(parsed.result.results[2].hours).toBe(3);
 				expect(parsed.result.results[3].hours).toBe(4);
-
-				// All should succeed
-				expect(parsed.result.batch_summary.total_pairs).toBe(4);
-				expect(parsed.result.batch_summary.successful_calculations).toBe(4);
-				expect(parsed.result.batch_summary.failed_calculations).toBe(0);
 			});
 
-			it("should not include batch_summary for non-pairwise modes", async () => {
+			it("should handle non-pairwise batch modes correctly", async () => {
 				const result = await handleTimeCalculator({
 					operation: "diff",
 					interaction_mode: "single_to_many",
@@ -799,8 +788,204 @@ describe("handleTimeCalculator", () => {
 				const parsed = parseResult(result);
 
 				expect(parsed.result.count).toBe(2);
-				expect(parsed.result.batch_summary).toBeUndefined();
+				expect(parsed.result.results).toHaveLength(2);
+				expect(parsed.result.results[0].hours).toBe(3);
+				expect(parsed.result.results[1].hours).toBe(6);
 			});
+		});
+	});
+
+	describe("debug mode configuration", () => {
+		it("should not include metadata by default (debug disabled)", async () => {
+			// Ensure debug mode is disabled
+			configManager.setDebugMode(false);
+
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: "2024-01-01T12:00:00Z",
+				hours: 2,
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.metadata).toBeUndefined();
+			expect(parsed.result_timezone).toBe("America/New_York");
+		});
+
+		it("should include full metadata when debug mode is enabled", async () => {
+			// Enable debug mode
+			configManager.setDebugMode(true);
+
+			const result = await handleTimeCalculator({
+				operation: "add",
+				base_time: "2024-01-01T12:00:00Z",
+				hours: 2,
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.metadata).toBeDefined();
+			expect(parsed.metadata.calculation_timezone).toBeDefined();
+			expect(parsed.metadata.calculation_time).toBeDefined();
+			expect(typeof parsed.metadata.calculation_time).toBe("string");
+			// Should be a valid ISO timestamp
+			expect(() => new Date(parsed.metadata.calculation_time)).not.toThrow();
+
+			// Disable debug mode for other tests
+			configManager.setDebugMode(false);
+		});
+
+		it("should not include metadata in error responses by default", async () => {
+			// Ensure debug mode is disabled
+			configManager.setDebugMode(false);
+
+			const result = await handleTimeCalculator({
+				operation: "invalid_operation" as "add",
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.success).toBe(false);
+			expect(parsed.metadata).toBeUndefined();
+		});
+
+		it("should include metadata in error responses when debug mode is enabled", async () => {
+			// Enable debug mode
+			configManager.setDebugMode(true);
+
+			const result = await handleTimeCalculator({
+				operation: "invalid_operation" as "add",
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.success).toBe(false);
+			expect(parsed.metadata).toBeDefined();
+			expect(parsed.metadata.calculation_timezone).toBeDefined();
+			expect(parsed.metadata.calculation_time).toBeDefined();
+			expect(typeof parsed.metadata.calculation_time).toBe("string");
+
+			// Disable debug mode for other tests
+			configManager.setDebugMode(false);
+		});
+	});
+
+	describe("stats operation - human-readable formatting", () => {
+		it("should display correct human-readable durations instead of relative times", async () => {
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: [
+					"2024-01-01T00:00:00Z", 
+					"2024-01-01T00:00:00Z", 
+					"2024-01-01T00:00:00Z"
+				],
+				compare_time: [
+					"2024-01-08T00:00:00Z",  // 7 days
+					"2024-01-15T00:00:00Z", // 14 days
+					"2024-01-22T00:00:00Z"  // 21 days
+				]
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.operation).toBe("stats");
+			expect(parsed.result.duration_analysis).toBeDefined();
+			
+			// Should show proper duration formatting, not relative times like "55 years ago"
+			expect(parsed.result.duration_analysis.min_duration_human).toBe("7 days");
+			expect(parsed.result.duration_analysis.max_duration_human).toBe("21 days");
+			expect(parsed.result.duration_analysis.mean_duration_human).toBe("14 days");
+			expect(parsed.result.duration_analysis.median_duration_human).toBe("14 days");
+			
+			// Verify the mathematical calculations are correct
+			expect(parsed.result.duration_analysis.min_duration_ms).toBe(604800000); // 7 days in ms
+			expect(parsed.result.duration_analysis.max_duration_ms).toBe(1814400000); // 21 days in ms
+			expect(parsed.result.duration_analysis.mean_duration_ms).toBe(1209600000); // 14 days in ms
+			expect(parsed.result.duration_analysis.std_deviation_ms).toBeGreaterThan(0); // Should have variation
+		});
+
+		it("should format complex durations with multiple time units", async () => {
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: [
+					"2024-01-01T00:00:00Z",
+					"2024-01-01T00:00:00Z"
+				],
+				compare_time: [
+					"2024-01-01T01:30:45Z", // 1 hour, 30 minutes, 45 seconds
+					"2024-01-03T14:45:30Z"  // 2 days, 14 hours, 45 minutes, 30 seconds
+				]
+			});
+
+			const parsed = parseResult(result);
+			
+			expect(parsed.result.duration_analysis.min_duration_human).toBe("1 hour, 30 minutes, 45 seconds");
+			expect(parsed.result.duration_analysis.max_duration_human).toBe("2 days, 14 hours, 45 minutes, 30 seconds");
+		});
+
+		it("should format timestamp analysis human-readable spans correctly", async () => {
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: [
+					"2024-01-01T08:00:00Z",
+					"2024-01-02T09:15:00Z", 
+					"2024-01-03T07:45:00Z",
+					"2024-01-04T08:30:00Z"
+				]
+			});
+
+			const parsed = parseResult(result);
+
+			expect(parsed.operation).toBe("stats");
+			expect(parsed.result.timestamp_analysis).toBeDefined();
+			
+			// Should show proper duration formatting for time spans
+			expect(parsed.result.timestamp_analysis.total_span_human).not.toContain("years ago");
+			expect(parsed.result.timestamp_analysis.total_span_human).toMatch(/\d+ days/); // Should be in days format
+			
+			// Interval analysis should also be formatted correctly
+			if (parsed.result.interval_analysis) {
+				expect(parsed.result.interval_analysis.mean_interval_human).not.toContain("years ago");
+				expect(parsed.result.interval_analysis.mean_interval_human).toMatch(/\d+ (day|hour|minute)/);
+			}
+		});
+
+		it("should handle edge cases in duration formatting", async () => {
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: [
+					"2024-01-01T00:00:00Z",
+					"2024-01-01T00:00:00Z"
+				],
+				compare_time: [
+					"2024-01-01T00:00:01Z", // 1 second
+					"2024-01-01T00:01:00Z"  // 1 minute
+				]
+			});
+
+			const parsed = parseResult(result);
+			
+			expect(parsed.result.duration_analysis.min_duration_human).toBe("1 second");
+			expect(parsed.result.duration_analysis.max_duration_human).toBe("1 minute");
+		});
+
+		it("should handle zero and negative durations", async () => {
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: [
+					"2024-01-15T12:00:00Z",
+					"2024-01-15T12:00:00Z"
+				],
+				compare_time: [
+					"2024-01-15T12:00:00Z", // 0 duration
+					"2024-01-15T10:00:00Z"  // negative 2 hours
+				]
+			});
+
+			const parsed = parseResult(result);
+			
+			expect(parsed.result.duration_analysis.min_duration_human).toBe("-2 hours");
+			// Note: formatDuration should handle negative durations with minus sign
 		});
 	});
 });

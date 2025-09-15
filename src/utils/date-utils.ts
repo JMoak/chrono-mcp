@@ -111,6 +111,31 @@ export function parseDateTime(dateString: string, timezone?: string): DateTime {
 }
 
 /**
+ * Format duration in milliseconds to human-readable string
+ */
+export function formatDuration(milliseconds: number): string {
+	const absMs = Math.abs(milliseconds);
+	const isNegative = milliseconds < 0;
+
+	const days = Math.floor(absMs / (1000 * 60 * 60 * 24));
+	const hours = Math.floor((absMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+	const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60));
+	const seconds = Math.floor((absMs % (1000 * 60)) / 1000);
+
+	const parts: string[] = [];
+
+	if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+	if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+	if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? "s" : ""}`);
+	if (seconds > 0) parts.push(`${seconds} second${seconds !== 1 ? "s" : ""}`);
+
+	if (parts.length === 0) return "0 seconds";
+
+	const result = parts.join(", ");
+	return isNegative ? `-${result}` : result;
+}
+
+/**
  * Validate if a string is a valid timezone
  */
 export function isValidTimezone(timezone: string): boolean {
