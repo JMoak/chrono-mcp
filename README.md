@@ -2,9 +2,15 @@
 
 A comprehensive Model Context Protocol (MCP) server providing advanced date, time, timezone, and calendar operations powered by Luxon. Perfect for AI agents and applications that need robust temporal data handling.
 
-[![NPM Version](https://img.shields.io/npm/v/@jmoak/chrono-mcp)](https://npmjs.com/package/@jmoak/chrono-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![NPM Version](https://img.shields.io/npm/v/@jmoak/chrono-mcp)](https://www.npmjs.com/package/@jmoak/chrono-mcp)
+[![Downloads](https://img.shields.io/npm/dm/@jmoak/chrono-mcp)](https://www.npmjs.com/package/@jmoak/chrono-mcp)
 [![Node Version](https://img.shields.io/node/v/@jmoak/chrono-mcp)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![Code Style: Biome](https://img.shields.io/badge/Code%20Style-Biome-60a5fa)](https://biomejs.dev/)
+[![Tests: Vitest](https://img.shields.io/badge/Tests-Vitest-6E9F18)](https://vitest.dev/)
+[![MCP Server](https://img.shields.io/badge/MCP-Server-0b7285)](https://modelcontextprotocol.io/)
+[![Powered by Luxon](https://img.shields.io/badge/Powered%20by-Luxon-0a3d62)](https://github.com/moment/luxon)
 
 ## Features
 
@@ -29,16 +35,6 @@ npx @jmoak/chrono-mcp
 ```
 
 ## Quick Start
-
-### Local Development & Testing
-
-Start the MCP Inspector for interactive testing:
-
-```bash
-npm run inspector
-```
-
-Visit `http://localhost:6274` to test your tools in the web interface.
 
 ### Production Usage
 
@@ -142,7 +138,8 @@ Add to your MCP client configuration:
 }
 ```
 
-## Development
+<details>
+<summary><strong>Development</strong></summary>
 
 ### Prerequisites
 - Node.js >= 22.0.0
@@ -160,17 +157,21 @@ npm install
 npm run build
 ```
 
-### Testing
+### Testing & Inspector
 ```bash
 npm test
-npm run test:ui  # Visual test interface
+npm run test:ui
+npm run inspector
 ```
+Visit `http://localhost:6274` for the web inspector UI.
 
 ### Linting
 ```bash
 npm run lint
 npm run lint:fix
 ```
+
+</details>
 
 ## Supported Timezones
 
@@ -198,11 +199,6 @@ This project is powered by [Luxon](https://github.com/moment/luxon), the excelle
 
 MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Changelog
+## Releases
 
-### v0.1.0
-- Initial release with GET_TIME and TIME_CALCULATOR tools
-- Comprehensive timezone support
-- Multiple output formats
-- Time arithmetic operations
-- MCP Inspector integration
+See [GitHub Releases](https://github.com/JMoak/chrono-mcp/releases) for detailed changes.
