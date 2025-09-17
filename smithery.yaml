@@ -3,15 +3,18 @@ build:
   dockerBuildPath: .
 
 startCommand:
-  type: stdio
+  type: http
   configSchema:
     type: object
-    properties: {}
+    properties:
+      port:
+        type: integer
+        default: 8000
     additionalProperties: false
   commandFunction: |-
     (config) => ({
       command: "node",
       args: ["dist/index.js"],
-      env: {}
+      env: { MCP_TRANSPORT: "http", PORT: String(config.port ?? 8000) }
     })
 

@@ -4,6 +4,10 @@
 			"command": "node",
 			"args": ["dist/index.js"],
 			"env": {}
+		},
+		"chrono-mcp-http": {
+			"type": "http",
+			"url": "http://localhost:8000/mcp"
 		}
 	}
 }

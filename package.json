@@ -39,7 +39,8 @@
 		"lint:fix": "biome check --write --unsafe .",
 		"inspector": "npx @modelcontextprotocol/inspector --config .mcp.json --profile chrono-mcp",
 		"test": "vitest run",
-		"test:ui": "vitest run --ui"
+		"test:ui": "vitest run --ui",
+		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/index.js')\""
 	},
 	"engines": {
 		"node": ">=22.0.0"
