@@ -11,6 +11,7 @@ A comprehensive Model Context Protocol (MCP) server providing advanced date, tim
 [![Tests: Vitest](https://img.shields.io/badge/Tests-Vitest-6E9F18)](https://vitest.dev/)
 [![MCP Server](https://img.shields.io/badge/MCP-Server-0b7285)](https://modelcontextprotocol.io/)
 [![Powered by Luxon](https://img.shields.io/badge/Powered%20by-Luxon-0a3d62)](https://github.com/moment/luxon)
+[![smithery badge](https://smithery.ai/badge/@JMoak/chrono-mcp)](https://smithery.ai/server/@JMoak/chrono-mcp)
 
 ## Quick Start
 
