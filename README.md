@@ -17,6 +17,15 @@ A comprehensive Model Context Protocol (MCP) server providing advanced date, tim
 ```bash
 npx @jmoak/chrono-mcp
 ```
+
+### Run as local HTTP server
+
+```bash
+npm install
+npm run build
+npm run start:http
+# Server listens on http://localhost:8000/mcp (health check at /health)
+```
 ## MCP Client Configuration
 
 Configure your MCP client to launch `chrono-mcp` via `npx`. Below are client-specific examples.
@@ -46,6 +55,10 @@ Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-proto
     "chrono-mcp": {
       "command": "npx",
       "args": ["-y", "@jmoak/chrono-mcp@latest"]
+    },
+    "chrono-mcp-http": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp"
     }
   }
 }

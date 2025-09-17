@@ -5,9 +5,10 @@
 	"type": "module",
 	"description": "A Model Context Protocol (MCP) server providing real-time date, time, and timezone tools with calculation capabilities",
 	"bin": {
-		"chrono-mcp": "dist/index.js"
+		"chrono-mcp": "dist/cli.js"
 	},
 	"main": "dist/index.js",
+	"module": "src/index.ts",
 	"files": [
 		"dist",
 		"README.md",
@@ -40,7 +41,7 @@
 		"inspector": "npx @modelcontextprotocol/inspector --config .mcp.json --profile chrono-mcp",
 		"test": "vitest run",
 		"test:ui": "vitest run --ui",
-		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/index.js')\""
+		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/cli.js')\""
 	},
 	"engines": {
 		"node": ">=22.0.0"
