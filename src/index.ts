@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { createServer } from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
 	CallToolRequestSchema,
 	ErrorCode,
@@ -37,6 +39,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function main() {
+	const mode = (process.env.MCP_TRANSPORT ?? "stdio").toLowerCase();
+	if (mode === "http") {
+		const port = Number(process.env.PORT ?? 8000);
+		const transport = new StreamableHTTPServerTransport({
+			sessionIdGenerator: undefined,
+		});
+		await server.connect(transport);
+		const httpServer = createServer(async (req, res) => {
+			const url = new URL(req.url ?? "/", "http://localhost");
+			if (url.pathname === "/mcp") {
+				await transport.handleRequest(req, res);
+				return;
+			}
+			res.statusCode = 404;
+			res.end();
+		});
+		httpServer.listen(port);
+		return;
+	}
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 }
