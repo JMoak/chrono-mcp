@@ -2,7 +2,7 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { DateTime } from "luxon";
 import { z } from "zod";
 import { configManager } from "../utils/config.js";
-import { formatDuration } from "../utils/date-utils.js";
+import { formatDuration, normalizeToUTC } from "../utils/date-utils.js";
 
 const MAX_OPERATIONS = 10000;
 
@@ -919,7 +919,11 @@ export async function handleTimeCalculator(args: unknown) {
 
 			// Handle different interaction modes for batch operations
 			const diffOperation = (baseTime: DateTime, compareTime: DateTime) => {
-				const diff = compareTime.diff(baseTime, [
+				// Normalize both times to UTC to ensure consistent calculations regardless of timezone
+				const baseTimeUTC = normalizeToUTC(baseTime);
+				const compareTimeUTC = normalizeToUTC(compareTime);
+
+				const diff = compareTimeUTC.diff(baseTimeUTC, [
 					"years",
 					"months",
 					"days",
@@ -929,7 +933,7 @@ export async function handleTimeCalculator(args: unknown) {
 					"milliseconds",
 				]);
 
-				const totalMs = compareTime.diff(baseTime).as("milliseconds");
+				const totalMs = compareTimeUTC.diff(baseTimeUTC).as("milliseconds");
 
 				if (validatedArgs.operation === "diff") {
 					// Decomposed time units that add up to the total time difference
@@ -1185,7 +1189,10 @@ export async function handleTimeCalculator(args: unknown) {
 						);
 					}
 
-					const duration = compareTime.diff(baseTime).milliseconds;
+					// Normalize both times to UTC to ensure consistent calculations regardless of timezone
+					const baseTimeUTC = normalizeToUTC(baseTime);
+					const compareTimeUTC = normalizeToUTC(compareTime);
+					const duration = compareTimeUTC.diff(baseTimeUTC).milliseconds;
 					durations.push(duration);
 				}
 
