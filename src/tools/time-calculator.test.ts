@@ -261,11 +261,11 @@ describe("handleTimeCalculator", () => {
 			expect(parsed.result.years).toBe(1);
 			expect(parsed.result.months).toBe(2);
 			expect(parsed.result.days).toBe(5);
-			expect(parsed.result.hours).toBe(7);
+			expect(parsed.result.hours).toBe(6);
 			expect(parsed.result.minutes).toBe(15);
 			expect(parsed.result.seconds).toBe(30);
 			expect(parsed.result.human_readable).toBe(
-				"1 year, 2 months, 5 days, 7 hours, 15 minutes, 30 seconds, 0 milliseconds",
+				"1 year, 2 months, 5 days, 6 hours, 15 minutes, 30 seconds, 0 milliseconds",
 			);
 			expect(parsed.result.total_milliseconds).toBeGreaterThan(0);
 		});

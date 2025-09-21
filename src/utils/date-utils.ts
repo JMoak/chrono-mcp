@@ -158,3 +158,22 @@ export function isValidTimezone(timezone: string): boolean {
 		return false;
 	}
 }
+
+/**
+ * Normalize DateTime object to UTC for consistent duration/difference calculations
+ * This ensures that timezone differences don't affect duration calculations
+ */
+export function normalizeToUTC(dt: DateTime): DateTime {
+	if (!dt.isValid) {
+		return dt; // Return invalid DateTime as-is
+	}
+	return dt.toUTC();
+}
+
+/**
+ * Normalize multiple DateTime objects to UTC for consistent calculations
+ * This is a convenience function for batch normalization
+ */
+export function normalizeAllToUTC(datetimes: DateTime[]): DateTime[] {
+	return datetimes.map(normalizeToUTC);
+}
