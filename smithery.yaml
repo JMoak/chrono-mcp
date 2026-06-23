@@ -1,2 +1,46 @@
-runtime: "typescript"
+runtime: nodejs
 
+# Smithery configuration for MCP Directory
+# https://smithery.ai/docs/config
+
+name: "@JMoak/chrono-mcp"
+description: "A comprehensive MCP server providing advanced date, time, timezone, and calendar operations powered by Luxon"
+
+# Environment configuration
+env:
+  - name: MCP_TRANSPORT
+    description: "Transport mode for the server (stdio or http)"
+    default: "stdio"
+    required: false
+  - name: PORT
+    description: "Port for HTTP transport mode"
+    default: "8000"
+    required: false
+  - name: CHRONO_DEBUG
+    description: "Enable debug mode for detailed metadata in responses"
+    default: "false"
+    required: false
+
+# Build configuration
+build:
+  install: "npm ci"
+  build: "npm run build"
+  test: "npm test"
+
+# Tool capabilities
+capabilities:
+  tools:
+    - name: "GET TIME"
+      description: "Get current time or convert times across timezones with flexible formatting"
+    - name: "TIME CALCULATOR"
+      description: "Perform time arithmetic operations including duration calculations and date math"
+
+# Supported platforms
+platforms:
+  - linux
+  - darwin
+  - win32
+
+# Minimum Node.js version
+engines:
+  node: ">=22.0.0"

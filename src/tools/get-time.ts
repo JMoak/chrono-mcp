@@ -46,7 +46,12 @@ export const GetTimeSchema = z.object({
 export const getTimeTool: Tool = {
 	name: "GET TIME",
 	description:
-		"Get current time or convert times across timezones with flexible formatting. Defaults to current time in system timezone when no parameters provided. Use timezones array to get multiple zones, formats array for multiple output formats.",
+		"Get current time or convert times across timezones with flexible formatting. Use this tool when you need to:\n" +
+		"- Check the current time in any timezone\n" +
+		"- Convert a specific datetime to multiple timezones\n" +
+		"- Format datetimes in various output styles (ISO, RFC2822, SQL, locale-aware)\n" +
+		"- Get UTC offsets for timezone conversions\n\n" +
+		"Defaults to current time in system timezone when no parameters provided. Use the timezones array to convert to multiple zones simultaneously, and the formats array to get multiple output formats for the base time.",
 	inputSchema: {
 		type: "object",
 		properties: {

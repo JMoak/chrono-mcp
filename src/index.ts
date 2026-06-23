@@ -13,7 +13,7 @@ import {
 
 export default function createServer(_opts: { config?: unknown } = {}) {
 	const server = new Server(
-		{ name: "chrono-mcp", version: "0.2.0" },
+		{ name: "chrono-mcp", version: "0.4.2" },
 		{ capabilities: { tools: {} } },
 	);
 
