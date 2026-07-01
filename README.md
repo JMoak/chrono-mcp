@@ -76,6 +76,12 @@ Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-proto
 - **Easy Integration** - Standard MCP protocol for seamless AI agent integration
 - **Token-Optimized Output** - Dynamically shaped responses that maximize information density while minimizing token usage for efficient AI interactions
 
+## Documentation
+
+- **[API Reference](./API.md)** - Complete documentation of all tools, parameters, and examples
+- **[Architecture](./ARCHITECTURE.md)** - System architecture and design principles
+- **[Examples](./examples/)** - Practical usage examples and patterns
+
 ## Available Tools
 
 ### GET TIME

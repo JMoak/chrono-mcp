@@ -1,7 +1,8 @@
 import { DateTime } from "luxon";
 
 /**
- * Common timezone identifiers
+ * Common timezone identifiers for reference and validation.
+ * These represent frequently used timezones across different regions.
  */
 export const COMMON_TIMEZONES = [
 	"UTC",
@@ -18,7 +19,20 @@ export const COMMON_TIMEZONES = [
 ] as const;
 
 /**
- * Format a DateTime object according to the specified format
+ * Formats a DateTime object according to the specified format string.
+ *
+ * @param dt - The DateTime object to format
+ * @param format - The format identifier (iso, rfc2822, http, sql, local, localeString, short, medium, long, full, or custom Luxon format string)
+ * @param locale - Optional locale string for locale-aware formatting (e.g., 'en-US', 'fr-FR')
+ * @returns The formatted datetime string, or empty string if formatting fails
+ *
+ * @example
+ * ```typescript
+ * const dt = DateTime.now();
+ * formatDateTime(dt, 'iso');        // "2024-12-25T15:00:00.000-05:00"
+ * formatDateTime(dt, 'short');      // "12/25/2024, 3:00 PM"
+ * formatDateTime(dt, 'full', 'de'); // "Mittwoch, 25. Dezember 2024 um 15:00:00 GMT-05:00"
+ * ```
  */
 export function formatDateTime(
 	dt: DateTime,
@@ -52,7 +66,16 @@ export function formatDateTime(
 }
 
 /**
- * Get current time in specified timezone
+ * Gets the current time, optionally in a specified timezone.
+ *
+ * @param timezone - Optional IANA timezone identifier (e.g., 'America/New_York')
+ * @returns A DateTime object representing the current time
+ *
+ * @example
+ * ```typescript
+ * getCurrentTime();                           // Current time in system timezone
+ * getCurrentTime('Asia/Tokyo');              // Current time in Tokyo
+ * ```
  */
 export function getCurrentTime(timezone?: string): DateTime {
 	const now = DateTime.now();
@@ -60,7 +83,20 @@ export function getCurrentTime(timezone?: string): DateTime {
 }
 
 /**
- * Parse a date/time string in a specific timezone
+ * Parses a date/time string using multiple strategies.
+ * Attempts ISO, RFC2822, HTTP, SQL formats, then falls back to common custom formats.
+ *
+ * @param dateString - The datetime string to parse
+ * @param timezone - Optional timezone to apply to the parsed datetime
+ * @returns A valid DateTime object
+ * @throws Error if the string cannot be parsed by any strategy
+ *
+ * @example
+ * ```typescript
+ * parseDateTime('2024-12-25T15:00:00Z');              // ISO format
+ * parseDateTime('Wed, 25 Dec 2024 15:00:00 GMT');    // RFC2822 format
+ * parseDateTime('2024-12-25 15:00:00', 'UTC');       // With timezone override
+ * ```
  */
 export function parseDateTime(dateString: string, timezone?: string): DateTime {
 	// Try multiple parsing strategies
@@ -111,7 +147,18 @@ export function parseDateTime(dateString: string, timezone?: string): DateTime {
 }
 
 /**
- * Format duration in milliseconds to human-readable string
+ * Formats a duration in milliseconds to a human-readable string.
+ * Breaks down the duration into years, days, hours, minutes, and seconds.
+ *
+ * @param milliseconds - The duration in milliseconds (can be negative)
+ * @returns A human-readable duration string (e.g., "2 days, 5 hours, 30 minutes")
+ *
+ * @example
+ * ```typescript
+ * formatDuration(90061000);     // "1 day, 1 hour, 1 minute, 1 second"
+ * formatDuration(-3600000);     // "-1 hour"
+ * formatDuration(0);            // "0 seconds"
+ * ```
  */
 export function formatDuration(milliseconds: number): string {
 	const absMs = Math.abs(milliseconds);
@@ -148,7 +195,17 @@ export function formatDuration(milliseconds: number): string {
 }
 
 /**
- * Validate if a string is a valid timezone
+ * Validates whether a string is a valid IANA timezone identifier.
+ *
+ * @param timezone - The timezone string to validate
+ * @returns True if the timezone is valid, false otherwise
+ *
+ * @example
+ * ```typescript
+ * isValidTimezone('America/New_York');  // true
+ * isValidTimezone('Invalid/Timezone');  // false
+ * isValidTimezone('UTC');               // true
+ * ```
  */
 export function isValidTimezone(timezone: string): boolean {
 	try {
@@ -160,8 +217,19 @@ export function isValidTimezone(timezone: string): boolean {
 }
 
 /**
- * Normalize DateTime object to UTC for consistent duration/difference calculations
- * This ensures that timezone differences don't affect duration calculations
+ * Normalizes a DateTime object to UTC for consistent duration calculations.
+ * This ensures that timezone differences don't affect duration/difference calculations.
+ *
+ * @param dt - The DateTime object to normalize
+ * @returns A new DateTime object in UTC, or the original if invalid
+ *
+ * @example
+ * ```typescript
+ * const nyTime = DateTime.now().setZone('America/New_York');
+ * const tokyoTime = DateTime.now().setZone('Asia/Tokyo');
+ * normalizeToUTC(nyTime);      // UTC normalized version
+ * normalizeToUTC(tokyoTime);   // Same UTC moment
+ * ```
  */
 export function normalizeToUTC(dt: DateTime): DateTime {
 	if (!dt.isValid) {
@@ -171,8 +239,11 @@ export function normalizeToUTC(dt: DateTime): DateTime {
 }
 
 /**
- * Normalize multiple DateTime objects to UTC for consistent calculations
- * This is a convenience function for batch normalization
+ * Normalizes an array of DateTime objects to UTC.
+ * Convenience wrapper around normalizeToUTC for batch operations.
+ *
+ * @param datetimes - Array of DateTime objects to normalize
+ * @returns Array of UTC-normalized DateTime objects
  */
 export function normalizeAllToUTC(datetimes: DateTime[]): DateTime[] {
 	return datetimes.map(normalizeToUTC);

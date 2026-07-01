@@ -515,7 +515,13 @@ export const TimeCalculatorSchema = z.object({
 export const timeCalculatorTool: Tool = {
 	name: "TIME CALCULATOR",
 	description:
-		"Perform time arithmetic operations including duration calculations, date math, interval operations, statistical analysis, and sorting. Use for adding/subtracting time periods, calculating differences between dates, analyzing time-based datasets, or sorting arrays of timestamps.",
+		"Perform time arithmetic operations including duration calculations, date math, interval operations, statistical analysis, and sorting. Use this tool when you need to:\n" +
+		"- Add or subtract time periods (years, months, days, hours, minutes, seconds) from dates\n" +
+		"- Calculate the difference between two dates (diff for simple units, duration_between for calendar-aware breakdown)\n" +
+		"- Perform batch calculations on arrays of timestamps using interaction modes (auto_detect, single_to_many, many_to_single, pairwise, cross_product)\n" +
+		"- Analyze time-series data statistically (earliest/latest, mean/median, intervals, durations)\n" +
+		"- Sort arrays of timestamps chronologically\n\n" +
+		"Supports timezone-aware calculations and can handle up to 10,000 operations per request. Use interaction_mode to control how base_time and compare_time arrays interact.",
 	inputSchema: {
 		type: "object",
 		properties: {

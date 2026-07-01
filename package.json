@@ -12,7 +12,14 @@
 	"files": [
 		"dist",
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"CHANGELOG.md",
+		"API.md",
+		"SECURITY.md",
+		"CODE_OF_CONDUCT.md",
+		"CONTRIBUTING.md",
+		"docs",
+		"examples"
 	],
 	"keywords": [
 		"mcp-server",
@@ -41,6 +48,7 @@
 		"inspector": "npx @modelcontextprotocol/inspector --config .mcp.json --profile chrono-mcp",
 		"test": "vitest run",
 		"test:ui": "vitest run --ui",
+		"test:coverage": "vitest run --coverage",
 		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/cli.js')\""
 	},
 	"engines": {
