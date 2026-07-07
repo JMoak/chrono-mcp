@@ -149,8 +149,8 @@ class ConfigManager {
  * if (configManager.isDebugMode()) {
  *   result.metadata = { calculation_time: DateTime.now().toISO() };
  * }
-	* ```
-	*/
+ * ```
+ */
 export const configManager = ConfigManager.getInstance();
 
 /**
