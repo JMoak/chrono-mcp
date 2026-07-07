@@ -263,7 +263,7 @@ function applyDuration(
 
 	for (let i = 0; i < timestamps.length; i++) {
 		const timestamp = timestamps[i];
-		if (!timestamp || !timestamp.isValid) {
+		if (!timestamp?.isValid) {
 			errors.push(
 				`Timestamp at index ${i} is invalid: ${timestamp?.invalidReason || "undefined timestamp"}`,
 			);
