@@ -185,8 +185,14 @@ npm run build
 ```bash
 npm test
 npm run test:ui
+npm run test:mcp
 npm run inspector
 ```
+
+- `npm test` — Vitest **unit** tests for tool handlers
+- `npm run test:mcp` — Vibrissa **MCP protocol** cases (requires `npm run build` first; no Python)
+- Protocol contracts live in `tests/contracts/*.tdd` and emit to `tests/integration/vibrissa/cases/` via tdd-dsl locally (`npm run contracts:emit` if `tdd-dsl` is on your PATH). CI runs only the committed JSON with `vib run`.
+
 Visit `http://localhost:6274` for the web inspector UI.
 
 ### Linting

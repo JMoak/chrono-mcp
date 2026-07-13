@@ -1,0 +1,14 @@
+{
+  "server": {
+    "cmd": "node",
+    "args": ["dist/cli.js"],
+    "cwd": ".",
+    "env": {
+      "TZ": "America/New_York"
+    }
+  },
+  "globs": ["tests/integration/vibrissa/cases/**/*.json"],
+  "concurrency": 1,
+  "timeoutMs": 15000,
+  "failFast": false
+}

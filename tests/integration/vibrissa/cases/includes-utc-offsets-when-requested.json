@@ -1,0 +1,21 @@
+{
+  "name": "includes UTC offsets when requested",
+  "tool": "GET TIME",
+  "args": {
+    "datetime": "2024-07-15T12:00:00Z",
+    "timezones": [
+      "America/New_York",
+      "Europe/Paris"
+    ],
+    "includeOffsets": true
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"baseTime\": \"2024-07-15T08:00:00.000-04:00\",\n  \"America/New_York\": \"2024-07-15T08:00:00.000-04:00\",\n  \"Europe/Paris\": \"2024-07-15T14:00:00.000+02:00\"\n}"
+      }
+    ]
+  }
+}

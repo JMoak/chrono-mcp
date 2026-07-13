@@ -1,0 +1,23 @@
+{
+  "name": "formats base time with iso and rfc2822",
+  "tool": "GET TIME",
+  "args": {
+    "datetime": "2024-12-25T15:00:00Z",
+    "timezones": [
+      "America/New_York"
+    ],
+    "formats": [
+      "iso",
+      "rfc2822"
+    ]
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"baseTime\": \"2024-12-25T10:00:00.000-05:00\",\n  \"America/New_York\": \"2024-12-25T10:00:00.000\",\n  \"baseTime_iso\": \"2024-12-25T10:00:00.000-05:00\",\n  \"baseTime_rfc2822\": \"Wed, 25 Dec 2024 10:00:00 -0500\"\n}"
+      }
+    ]
+  }
+}

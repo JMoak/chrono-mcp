@@ -1,0 +1,58 @@
+suite "chrono-mcp GET TIME protocol"
+target vibrissa "chrono-mcp"
+
+case "converts time to multiple timezones":
+  given input:
+    {
+      "datetime": "2024-12-25T15:00:00Z",
+      "timezones": ["America/New_York", "Europe/London", "Asia/Tokyo"]
+    }
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"baseTime\": \"2024-12-25T10:00:00.000-05:00\",\n  \"America/New_York\": \"2024-12-25T10:00:00.000\",\n  \"Europe/London\": \"2024-12-25T15:00:00.000\",\n  \"Asia/Tokyo\": \"2024-12-26T00:00:00.000\"\n}"
+        }
+      ]
+    }
+
+case "includes UTC offsets when requested":
+  given input:
+    {
+      "datetime": "2024-07-15T12:00:00Z",
+      "timezones": ["America/New_York", "Europe/Paris"],
+      "includeOffsets": true
+    }
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"baseTime\": \"2024-07-15T08:00:00.000-04:00\",\n  \"America/New_York\": \"2024-07-15T08:00:00.000-04:00\",\n  \"Europe/Paris\": \"2024-07-15T14:00:00.000+02:00\"\n}"
+        }
+      ]
+    }
+
+case "formats base time with iso and rfc2822":
+  given input:
+    {
+      "datetime": "2024-12-25T15:00:00Z",
+      "timezones": ["America/New_York"],
+      "formats": ["iso", "rfc2822"]
+    }
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"baseTime\": \"2024-12-25T10:00:00.000-05:00\",\n  \"America/New_York\": \"2024-12-25T10:00:00.000\",\n  \"baseTime_iso\": \"2024-12-25T10:00:00.000-05:00\",\n  \"baseTime_rfc2822\": \"Wed, 25 Dec 2024 10:00:00 -0500\"\n}"
+        }
+      ]
+    }

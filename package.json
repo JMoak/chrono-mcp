@@ -49,7 +49,10 @@
 		"test": "vitest run",
 		"test:ui": "vitest run --ui",
 		"test:coverage": "vitest run --coverage",
-		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/cli.js')\""
+		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/cli.js')\"",
+		"test:mcp": "node ./node_modules/vibrissa/bin/vib-test.js run",
+		"contracts:emit": "tdd-dsl emit --target vibrissa --out-dir tests/integration/vibrissa/cases tests/contracts/get-time.tdd",
+		"postinstall": "node ./scripts/ensure-vibrissa-build.cjs"
 	},
 	"engines": {
 		"node": ">=22.0.0"
@@ -65,6 +68,7 @@
 		"@types/node": "^24.3.3",
 		"rimraf": "^6.1.3",
 		"typescript": "^6.0.3",
+		"vibrissa": "file:../vibrissa",
 		"vitest": "^4.1.10"
 	}
 }

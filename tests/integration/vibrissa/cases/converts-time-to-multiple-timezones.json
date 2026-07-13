@@ -1,0 +1,21 @@
+{
+  "name": "converts time to multiple timezones",
+  "tool": "GET TIME",
+  "args": {
+    "datetime": "2024-12-25T15:00:00Z",
+    "timezones": [
+      "America/New_York",
+      "Europe/London",
+      "Asia/Tokyo"
+    ]
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"baseTime\": \"2024-12-25T10:00:00.000-05:00\",\n  \"America/New_York\": \"2024-12-25T10:00:00.000\",\n  \"Europe/London\": \"2024-12-25T15:00:00.000\",\n  \"Asia/Tokyo\": \"2024-12-26T00:00:00.000\"\n}"
+      }
+    ]
+  }
+}
