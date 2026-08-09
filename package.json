@@ -3,7 +3,7 @@
 	"version": "0.4.2",
 	"private": false,
 	"type": "module",
-	"description": "A Model Context Protocol (MCP) server providing real-time date, time, and timezone tools with calculation capabilities",
+	"description": "MCP server for time math at scale — RFC 9557 (IXDTF) interchange, DST-correct RRULE expansion, 100k-item batch stats, and a temporal context envelope on every response",
 	"bin": {
 		"chrono-mcp": "dist/cli.js"
 	},
@@ -28,7 +28,14 @@
 		"timezone",
 		"date",
 		"datetime",
-		"calendar"
+		"calendar",
+		"rrule",
+		"recurrence",
+		"ixdtf",
+		"rfc-9557",
+		"rfc-5545",
+		"batch",
+		"luxon"
 	],
 	"author": "Jordan Moak",
 	"license": "MIT",

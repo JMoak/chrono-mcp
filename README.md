@@ -1,6 +1,6 @@
 # chrono-mcp
 
-A comprehensive Model Context Protocol (MCP) server providing advanced date, time, timezone, and calendar operations powered by Luxon. Perfect for AI agents and applications that need robust temporal data handling.
+**The MCP server for time math at scale.** Batch-crunch up to 100,000 timestamps in a single tool call, speak the industry's temporal interchange standards (RFC 9557 IXDTF, RFC 5545 RRULE, ISO 8601 repeating intervals), and give your agent a passive sense of passing time on every response. Powered by Luxon, DST-correct by construction, and every limit is benchmark-backed.
 
 [![NPM Version](https://img.shields.io/npm/v/@jmoak/chrono-mcp)](https://www.npmjs.com/package/@jmoak/chrono-mcp)
 [![Downloads](https://img.shields.io/npm/dm/@jmoak/chrono-mcp)](https://www.npmjs.com/package/@jmoak/chrono-mcp)
@@ -66,18 +66,18 @@ Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-proto
 ```
 
 
-## Features
+## Why chrono-mcp
 
-- **Global Timezone Support** - Work with all IANA timezone identifiers
-- **Time Calculations** - Add/subtract durations, calculate differences between dates
-- **Multiple Formats** - ISO, RFC2822, SQL, locale-aware, and custom formatting
-- **Type Safety** - Zod validation with comprehensive error handling
-- **Real-time** - Current time retrieval with microsecond precision
-- **Easy Integration** - Standard MCP protocol for seamless AI agent integration
-- **Token-Optimized Output** - Dynamically shaped responses that maximize information density while minimizing token usage for efficient AI interactions
-- **Temporal Context Envelope** - Every tool response carries a compact trailing line with the current time, weekday, elapsed time since the agent's previous call, and session age — passive time-awareness on every interaction
+LLMs are famously bad at time: they miscount weekdays, lose track of elapsed time between turns, and fall apart on DST math. chrono-mcp fixes all three — and does it at bulk scale, in the formats the rest of the industry already speaks.
+
+- **Bulk by design** - 10,000 calculations per request for per-item operations; **100,000 timestamps** for `stats`, which returns pure aggregates. Every cap is proven by a benchmark you can run yourself (`npm run bench`) — per-item ops finish in under 100ms at the cap, 100k-item stats in ~460ms
 - **RFC 9557 (IXDTF) Interchange** - All datetime inputs accept bracketed IANA zone annotations (`2026-08-09T15:00:00-04:00[America/New_York]`) with Temporal-compatible offset-consistency validation, plus an `ixdtf` output format — the serialization standard of the JS Temporal API
 - **Recurrence Expansion** - `expand` turns RFC 5545 RRULEs (the format Google Calendar, Outlook, and Apple Calendar store) and ISO 8601 repeating intervals into concrete occurrences — DST-correct, window-bounded, with explicit truncation reporting
+- **Temporal Context Envelope** - Every tool response carries a compact trailing line with the current time, weekday, elapsed time since the agent's previous call, session age, and tzdb version — passive time-awareness on every interaction
+- **Batch Error Isolation** - One bad timestamp doesn't sink a 10,000-item batch: invalid entries are skipped and reported (`invalid_count` + samples), never silently dropped
+- **Token-Optimized Output** - Dynamically shaped responses that maximize information density while minimizing token usage
+- **Global Timezone Support** - All IANA timezone identifiers, with ISO, RFC2822, SQL, and locale-aware formatting
+- **Type Safety** - Zod validation on every parameter, MCP-compliant errors, strict TypeScript throughout
 
 ## Documentation
 
@@ -120,16 +120,18 @@ Output
 
 ### TIME CALCULATOR
 
-Perform time arithmetic operations including duration calculations and date math.
+Perform time arithmetic at any scale — single conversions to 100k-item batch analysis.
 
 **Operations:**
 - `add` - Add duration to a datetime
 - `subtract` - Subtract duration from a datetime
 - `diff` - Calculate simple difference in various units
 - `duration_between` - Detailed duration breakdown between two times
-- `stats` - Statistical analysis of time series and durations
+- `stats` - Statistical analysis of time series and durations (up to **100,000** timestamps per call)
 - `sort` - Sort timestamps chronologically
 - `expand` - Expand an RFC 5545 RRULE or ISO 8601 repeating interval into occurrences
+
+Every operation accepts arrays as well as single values, with `interaction_mode` controlling how base and compare arrays combine (`pairwise`, `cross_product`, `single_to_many`, …). Invalid entries in a batch are skipped and reported — never silently dropped, never fatal.
 
 **Expand example:**
 
@@ -159,6 +161,32 @@ Output (result excerpt — note the wall-clock time held across the DST transiti
 ```
 
 Also accepts ISO 8601 repeating intervals (`R5/2026-03-01T14:00:00Z/P1D`), `window_start`/`window_end` bounds, and `max_occurrences` caps (default 100, max 10,000) with explicit `truncated` reporting.
+
+**Bulk stats example** — hand it your entire event log; the response stays tiny no matter how many timestamps go in (up to 100,000):
+
+```json
+{
+  "operation": "stats",
+  "base_time": ["2026-01-01T00:00:00Z", "...99,998 more...", "2026-01-02T03:46:39Z"]
+}
+```
+
+Output (aggregates only — real excerpt from a 100,000-timestamp call that ran in ~500ms)
+```json
+{
+  "input_analysis": { "base_time_count": 100000 },
+  "timestamp_analysis": {
+    "earliest": "2026-01-01T00:00:00.000Z",
+    "latest": "2026-01-02T03:46:39.000Z",
+    "total_span_human": "1 day, 3 hours, 46 minutes, 39 seconds",
+    "std_deviation_ms": 28867513
+  },
+  "interval_analysis": {
+    "interval_count": 99999,
+    "mean_interval_human": "1 second"
+  }
+}
+```
 
 **Parameters:**
 - `operation` (required): Type of calculation
