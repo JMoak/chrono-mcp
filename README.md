@@ -75,6 +75,7 @@ Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-proto
 - **Real-time** - Current time retrieval with microsecond precision
 - **Easy Integration** - Standard MCP protocol for seamless AI agent integration
 - **Token-Optimized Output** - Dynamically shaped responses that maximize information density while minimizing token usage for efficient AI interactions
+- **Temporal Context Envelope** - Every tool response carries a compact trailing line with the current time, weekday, elapsed time since the agent's previous call, and session age — passive time-awareness on every interaction
 
 ## Documentation
 
@@ -161,6 +162,17 @@ Output
   "result_timezone": "UTC"
 }
 ```
+
+### Temporal Context Envelope
+
+Every tool response includes a second content block — a single ~20-token line giving the calling agent passive time-awareness:
+
+```text
+⏱ now 2026-08-09T15:02:11.123-04:00 (Sun) · first call this session
+⏱ now 2026-08-09T15:49:03.456-04:00 (Sun) · +46m52s since last call · session 47m1s · call #2
+```
+
+LLMs have no innate sense of elapsed time between turns; the envelope makes time passage visible on every interaction with the server — including the weekday, which models frequently miscompute. Disable it by setting `CHRONO_ENVELOPE=off` in the server environment.
 
 <details>
 <summary><strong>Development</strong></summary>

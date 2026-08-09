@@ -10,6 +10,8 @@ import {
 	handleTimeCalculator,
 	timeCalculatorTool,
 } from "./tools/time-calculator.js";
+import { configManager } from "./utils/config.js";
+import { SessionClock } from "./utils/envelope.js";
 
 export default function createServer(_opts: { config?: unknown } = {}) {
 	const server = new Server(
@@ -17,22 +19,32 @@ export default function createServer(_opts: { config?: unknown } = {}) {
 		{ capabilities: { tools: {} } },
 	);
 
+	const sessionClock = new SessionClock();
+
 	server.setRequestHandler(ListToolsRequestSchema, async () => ({
 		tools: [getTimeTool, timeCalculatorTool],
 	}));
 
 	server.setRequestHandler(CallToolRequestSchema, async (request) => {
+		let result: Awaited<ReturnType<typeof handleGetTime>>;
 		switch (request.params.name) {
 			case getTimeTool.name:
-				return await handleGetTime(request.params.arguments ?? {});
+				result = await handleGetTime(request.params.arguments ?? {});
+				break;
 			case timeCalculatorTool.name:
-				return await handleTimeCalculator(request.params.arguments ?? {});
+				result = await handleTimeCalculator(request.params.arguments ?? {});
+				break;
 			default:
 				throw new McpError(
 					ErrorCode.MethodNotFound,
 					`Unknown tool: ${request.params.name}`,
 				);
 		}
+
+		if (configManager.isEnvelopeEnabled() && Array.isArray(result.content)) {
+			result.content.push({ type: "text", text: sessionClock.stamp() });
+		}
+		return result;
 	});
 
 	return server;

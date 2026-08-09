@@ -1,0 +1,21 @@
+suite "chrono-mcp temporal envelope protocol"
+target vibrissa "chrono-mcp"
+
+case "appends temporal context envelope":
+  given input:
+    {}
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": { "$regex": "\"baseTime\"" }
+        },
+        {
+          "type": "text",
+          "text": { "$regex": "^⏱ now \\d{4}-\\d{2}-\\d{2}T[\\d:.]+([+-]\\d{2}:\\d{2}|Z) \\([A-Z][a-z]{2}\\) ·" }
+        }
+      ]
+    }

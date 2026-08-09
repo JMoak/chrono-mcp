@@ -28,6 +28,8 @@
 interface ServerConfig {
 	/** Whether debug mode is enabled for detailed output */
 	debugMode: boolean;
+	/** Whether the temporal context envelope is appended to tool responses */
+	envelopeEnabled: boolean;
 }
 
 /**
@@ -56,9 +58,11 @@ class ConfigManager {
 	 * @private
 	 */
 	private constructor() {
+		const envelopeEnv = (process.env.CHRONO_ENVELOPE ?? "").toLowerCase();
 		this.config = {
 			debugMode:
 				process.env.CHRONO_DEBUG === "true" || process.env.DEBUG === "true",
+			envelopeEnabled: !["off", "false", "0"].includes(envelopeEnv),
 		};
 	}
 
@@ -133,6 +137,27 @@ class ConfigManager {
 	 */
 	public isDebugMode(): boolean {
 		return this.config.debugMode;
+	}
+
+	/**
+	 * Sets whether the temporal context envelope is appended to tool responses.
+	 *
+	 * @param enabled - Whether to append the envelope
+	 */
+	public setEnvelopeEnabled(enabled: boolean): void {
+		this.config.envelopeEnabled = enabled;
+	}
+
+	/**
+	 * Checks whether the temporal context envelope is enabled.
+	 *
+	 * Enabled by default; disabled when the `CHRONO_ENVELOPE` environment
+	 * variable is set to "off", "false", or "0".
+	 *
+	 * @returns True if the envelope should be appended to tool responses
+	 */
+	public isEnvelopeEnabled(): boolean {
+		return this.config.envelopeEnabled;
 	}
 }
 
