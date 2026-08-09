@@ -76,6 +76,8 @@ Reference: [Cursor MCP docs](https://docs.cursor.com/context/model-context-proto
 - **Easy Integration** - Standard MCP protocol for seamless AI agent integration
 - **Token-Optimized Output** - Dynamically shaped responses that maximize information density while minimizing token usage for efficient AI interactions
 - **Temporal Context Envelope** - Every tool response carries a compact trailing line with the current time, weekday, elapsed time since the agent's previous call, and session age — passive time-awareness on every interaction
+- **RFC 9557 (IXDTF) Interchange** - All datetime inputs accept bracketed IANA zone annotations (`2026-08-09T15:00:00-04:00[America/New_York]`) with Temporal-compatible offset-consistency validation, plus an `ixdtf` output format — the serialization standard of the JS Temporal API
+- **Recurrence Expansion** - `expand` turns RFC 5545 RRULEs (the format Google Calendar, Outlook, and Apple Calendar store) and ISO 8601 repeating intervals into concrete occurrences — DST-correct, window-bounded, with explicit truncation reporting
 
 ## Documentation
 
@@ -127,6 +129,36 @@ Perform time arithmetic operations including duration calculations and date math
 - `duration_between` - Detailed duration breakdown between two times
 - `stats` - Statistical analysis of time series and durations
 - `sort` - Sort timestamps chronologically
+- `expand` - Expand an RFC 5545 RRULE or ISO 8601 repeating interval into occurrences
+
+**Expand example:**
+
+Input
+```json
+{
+  "operation": "expand",
+  "recurrence": "FREQ=WEEKLY;BYDAY=TU;COUNT=4",
+  "base_time": "2026-02-24T09:00:00[America/New_York]",
+  "occurrence_format": "ixdtf"
+}
+```
+
+Output (result excerpt — note the wall-clock time held across the DST transition)
+```json
+{
+  "rule_type": "rrule",
+  "count": 4,
+  "truncated": false,
+  "occurrences": [
+    "2026-02-24T09:00:00.000-05:00[America/New_York]",
+    "2026-03-03T09:00:00.000-05:00[America/New_York]",
+    "2026-03-10T09:00:00.000-04:00[America/New_York]",
+    "2026-03-17T09:00:00.000-04:00[America/New_York]"
+  ]
+}
+```
+
+Also accepts ISO 8601 repeating intervals (`R5/2026-03-01T14:00:00Z/P1D`), `window_start`/`window_end` bounds, and `max_occurrences` caps (default 100, max 10,000) with explicit `truncated` reporting.
 
 **Parameters:**
 - `operation` (required): Type of calculation

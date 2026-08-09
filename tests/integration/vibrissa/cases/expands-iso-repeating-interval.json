@@ -1,0 +1,17 @@
+{
+  "name": "expands iso repeating interval",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "expand",
+    "recurrence": "R3/2026-03-01T14:00:00Z/P1D"
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"count\": 3[\\s\\S]*\"2026-03-02T14:00:00\\.000Z\"" }
+      }
+    ]
+  }
+}

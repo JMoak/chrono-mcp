@@ -1,0 +1,16 @@
+{
+  "name": "rejects inconsistent ixdtf offset",
+  "tool": "GET TIME",
+  "args": {
+    "datetime": "2026-08-09T15:00:00-05:00[America/New_York]"
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "inconsistent offset" }
+      }
+    ]
+  }
+}

@@ -66,6 +66,7 @@ The TIME_CALCULATOR tool supports these operations:
 - **duration_between**: Calculate calendar-aware durations with human-readable format
 - **stats**: Perform statistical analysis on arrays of timestamps or time intervals
 - **sort**: Sort arrays of timestamps chronologically with metadata
+- **expand**: Expand RFC 5545 RRULEs or ISO 8601 repeating intervals into concrete occurrences (window bounds, occurrence caps, explicit truncation)
 
 ### Stats Operation
 The stats operation provides comprehensive analysis:
@@ -77,6 +78,13 @@ The sort operation chronologically sorts timestamp arrays:
 - **Input**: Array of timestamps in various formats
 - **Output**: Sorted timestamps in original format, ISO format, and as milliseconds
 - **Metadata**: Earliest/latest times, total time span, timezone information
+
+## Standards Adapters (north star: bulk time calc + common interchange)
+
+- **All datetime parsing goes through `parseInstant` in `src/utils/ixdtf.ts`** — it accepts plain ISO 8601 and RFC 9557 (IXDTF) bracketed zone annotations with Temporal-compatible consistency rules (Z+zone projects; mismatched numeric offset rejects). Never call `DateTime.fromISO` directly in tool handlers for user input.
+- **Recurrence expansion lives in `src/utils/recurrence.ts`** using `rrule-temporal` (chosen over classic `rrule` by a DST battery — classic rrule returns zone-less "fake UTC" instants). ISO 8601 repeating intervals are expanded natively via successive calendar-aware addition.
+- Expansion must always be bounded (cap and/or window) and truncation must be reported explicitly — never silently drop occurrences.
+- **HTTP mode creates one Server + transport pair per MCP session** (`src/cli.ts`) — never share a pair across HTTP clients (GHSA-345p-7cg4-v4c7 cross-client leak; also keeps each client's envelope SessionClock isolated).
 
 ## Temporal Context Envelope
 

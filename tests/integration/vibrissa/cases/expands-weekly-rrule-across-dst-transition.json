@@ -1,0 +1,18 @@
+{
+  "name": "expands weekly rrule across dst transition",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "expand",
+    "recurrence": "DTSTART;TZID=America/New_York:20260224T090000\nRRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=4",
+    "occurrence_format": "ixdtf"
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "2026-03-03T09:00:00\\.000-05:00\\[America/New_York\\][\\s\\S]*2026-03-10T09:00:00\\.000-04:00\\[America/New_York\\]" }
+      }
+    ]
+  }
+}

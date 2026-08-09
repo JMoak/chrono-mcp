@@ -1,0 +1,55 @@
+suite "chrono-mcp RFC 9557 IXDTF protocol"
+target vibrissa "chrono-mcp"
+
+case "accepts ixdtf datetime input":
+  given input:
+    {
+      "datetime": "2026-08-09T15:00:00-04:00[America/New_York]",
+      "timezones": ["UTC"]
+    }
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"baseTime\": \"2026-08-09T15:00:00.000-04:00\",\n  \"UTC\": \"2026-08-09T19:00:00.000\"\n}"
+        }
+      ]
+    }
+
+case "rejects inconsistent ixdtf offset":
+  given input:
+    {
+      "datetime": "2026-08-09T15:00:00-05:00[America/New_York]"
+    }
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": { "$regex": "inconsistent offset" }
+        }
+      ]
+    }
+
+case "emits ixdtf output format":
+  given input:
+    {
+      "datetime": "2026-08-09T15:00:00-04:00[America/New_York]",
+      "formats": ["ixdtf"]
+    }
+  when call "GET TIME"
+  then equals:
+    {
+      "$partial": true,
+      "content": [
+        {
+          "type": "text",
+          "text": { "$regex": "\"baseTime_ixdtf\": \"2026-08-09T15:00:00\\.000-04:00\\[America/New_York\\]\"" }
+        }
+      ]
+    }

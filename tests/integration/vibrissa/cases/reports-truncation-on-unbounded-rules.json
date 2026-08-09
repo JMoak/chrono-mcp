@@ -1,0 +1,19 @@
+{
+  "name": "reports truncation on unbounded rules",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "expand",
+    "recurrence": "FREQ=DAILY",
+    "base_time": "2026-01-01T09:00:00Z",
+    "max_occurrences": 5
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"count\": 5[\\s\\S]*\"truncated\": true" }
+      }
+    ]
+  }
+}

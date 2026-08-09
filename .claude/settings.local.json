@@ -9,7 +9,13 @@
       "mcp__sequential-thinking__sequentialthinking",
       "Bash(npm test:*)",
       "Bash(npm run lint:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(mkdir -p 'C:\\\\Users\\\\moakj/AppData/Local/Temp/claude/C--src-chrono-mcp/3d89ea38-77ec-4e2d-af97-d7eae686b47c/scratchpad/rrule-spike')",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node battery.mjs)",
+      "Bash(npm run *)",
+      "Bash(git add *)"
     ]
   },
   "enableAllProjectMcpServers": true,

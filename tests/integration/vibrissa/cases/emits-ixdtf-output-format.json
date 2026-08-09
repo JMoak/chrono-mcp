@@ -1,0 +1,17 @@
+{
+  "name": "emits ixdtf output format",
+  "tool": "GET TIME",
+  "args": {
+    "datetime": "2026-08-09T15:00:00-04:00[America/New_York]",
+    "formats": ["ixdtf"]
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"baseTime_ixdtf\": \"2026-08-09T15:00:00\\.000-04:00\\[America/New_York\\]\"" }
+      }
+    ]
+  }
+}

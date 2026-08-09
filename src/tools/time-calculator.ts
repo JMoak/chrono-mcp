@@ -3,6 +3,8 @@ import { DateTime } from "luxon";
 import { z } from "zod";
 import { configManager } from "../utils/config.js";
 import { formatDuration, normalizeToUTC } from "../utils/date-utils.js";
+import { parseInstant, toIXDTF } from "../utils/ixdtf.js";
+import { expandRecurrence } from "../utils/recurrence.js";
 
 const MAX_OPERATIONS = 10000;
 
@@ -199,19 +201,9 @@ function parseTimestamps(
 	const invalidTimes: string[] = [];
 
 	for (const timeStr of timesArray) {
-		// Check for timezone indicators: Z, +, or - after the time part
-		const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
-		let dt: DateTime;
-
-		if (timezone && !hasTimezone) {
-			dt = DateTime.fromISO(timeStr, { zone: timezone });
-		} else {
-			dt = DateTime.fromISO(timeStr);
-			// Apply timezone conversion if specified and time has timezone info
-			if (timezone) {
-				dt = dt.setZone(timezone);
-			}
-		}
+		// IXDTF-aware: self-zoned strings are converted to the requested
+		// timezone, wall-clock strings are interpreted in it
+		const dt = parseInstant(timeStr, timezone);
 
 		if (!dt.isValid) {
 			invalidTimes.push(`${timeStr} (${dt.invalidReason})`);
@@ -467,7 +459,15 @@ function _executeManyToSingle(
 
 export const TimeCalculatorSchema = z.object({
 	operation: z
-		.enum(["add", "subtract", "diff", "duration_between", "stats", "sort"])
+		.enum([
+			"add",
+			"subtract",
+			"diff",
+			"duration_between",
+			"stats",
+			"sort",
+			"expand",
+		])
 		.describe("Type of calculation to perform"),
 	interaction_mode: z
 		.enum([
@@ -510,6 +510,37 @@ export const TimeCalculatorSchema = z.object({
 	hours: z.number().optional().describe("Hours to add/subtract"),
 	minutes: z.number().optional().describe("Minutes to add/subtract"),
 	seconds: z.number().optional().describe("Seconds to add/subtract"),
+	recurrence: z
+		.string()
+		.optional()
+		.describe(
+			"For expand: RFC 5545 RRULE (e.g., 'FREQ=WEEKLY;BYDAY=TU;COUNT=10', optionally with DTSTART line) or ISO 8601 repeating interval (e.g., 'R5/2026-03-01T14:00:00Z/P1D'). RFC 9557 (IXDTF) zone annotations are supported in interval starts",
+		),
+	window_start: z
+		.string()
+		.optional()
+		.describe(
+			"For expand: inclusive lower bound; occurrences before this are skipped",
+		),
+	window_end: z
+		.string()
+		.optional()
+		.describe(
+			"For expand: inclusive upper bound; expansion stops beyond this",
+		),
+	max_occurrences: z
+		.number()
+		.int()
+		.min(1)
+		.max(MAX_OPERATIONS)
+		.optional()
+		.describe(
+			"For expand: cap on returned occurrences (default 100). Truncation is reported explicitly",
+		),
+	occurrence_format: z
+		.enum(["iso", "ixdtf", "epoch_ms"])
+		.optional()
+		.describe("For expand: output format for occurrences. Defaults to 'iso'"),
 });
 
 export const timeCalculatorTool: Tool = {
@@ -520,14 +551,24 @@ export const timeCalculatorTool: Tool = {
 		"- Calculate the difference between two dates (diff for simple units, duration_between for calendar-aware breakdown)\n" +
 		"- Perform batch calculations on arrays of timestamps using interaction modes (auto_detect, single_to_many, many_to_single, pairwise, cross_product)\n" +
 		"- Analyze time-series data statistically (earliest/latest, mean/median, intervals, durations)\n" +
-		"- Sort arrays of timestamps chronologically\n\n" +
+		"- Sort arrays of timestamps chronologically\n" +
+		"- Expand RFC 5545 RRULEs or ISO 8601 repeating intervals into concrete occurrences (expand) — DST-correct, with window bounds and explicit truncation reporting\n\n" +
+		"Datetime inputs accept RFC 9557 (IXDTF) zone annotations like '2026-08-09T15:00:00-04:00[America/New_York]'. " +
 		"Supports timezone-aware calculations and can handle up to 10,000 operations per request. Use interaction_mode to control how base_time and compare_time arrays interact.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			operation: {
 				type: "string",
-				enum: ["add", "subtract", "diff", "duration_between", "stats", "sort"],
+				enum: [
+					"add",
+					"subtract",
+					"diff",
+					"duration_between",
+					"stats",
+					"sort",
+					"expand",
+				],
 				description: "Type of calculation to perform",
 			},
 			interaction_mode: {
@@ -591,6 +632,32 @@ export const timeCalculatorTool: Tool = {
 			seconds: {
 				type: "number",
 				description: "Seconds to add/subtract",
+			},
+			recurrence: {
+				type: "string",
+				description:
+					"For expand: RFC 5545 RRULE (e.g., 'FREQ=WEEKLY;BYDAY=TU;COUNT=10', optionally with DTSTART line) or ISO 8601 repeating interval (e.g., 'R5/2026-03-01T14:00:00Z/P1D'). RFC 9557 (IXDTF) zone annotations are supported in interval starts",
+			},
+			window_start: {
+				type: "string",
+				description:
+					"For expand: inclusive lower bound; occurrences before this are skipped",
+			},
+			window_end: {
+				type: "string",
+				description:
+					"For expand: inclusive upper bound; expansion stops beyond this",
+			},
+			max_occurrences: {
+				type: "number",
+				description:
+					"For expand: cap on returned occurrences (default 100, max 10000). Truncation is reported explicitly",
+			},
+			occurrence_format: {
+				type: "string",
+				enum: ["iso", "ixdtf", "epoch_ms"],
+				description:
+					"For expand: output format for occurrences. Defaults to 'iso'",
 			},
 		},
 		required: ["operation"],
@@ -735,6 +802,7 @@ export async function handleTimeCalculator(args: unknown) {
 			base_time: string | string[];
 			compare_time?: string | string[];
 			duration?: DurationObject;
+			recurrence?: string;
 		};
 		result: unknown;
 		result_timezone?: string;
@@ -1052,14 +1120,7 @@ export async function handleTimeCalculator(args: unknown) {
 			const parseTimezone = validatedArgs.timezone;
 
 			for (const timeStr of baseTimes) {
-				const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
-				let dt: DateTime;
-				if (parseTimezone && !hasTimezone) {
-					dt = DateTime.fromISO(timeStr, { zone: parseTimezone });
-				} else {
-					dt = DateTime.fromISO(timeStr);
-					if (parseTimezone) dt = dt.setZone(parseTimezone);
-				}
+				const dt = parseInstant(timeStr, parseTimezone);
 				if (!dt.isValid) {
 					throw new Error(`Invalid time format in base_time: ${timeStr}`);
 				}
@@ -1159,30 +1220,8 @@ export async function handleTimeCalculator(args: unknown) {
 						continue;
 					}
 
-					// Parse base time
-					const hasBaseTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(baseTimeStr);
-					let baseTime: DateTime;
-					if (parseTimezone && !hasBaseTimezone) {
-						baseTime = DateTime.fromISO(baseTimeStr, { zone: parseTimezone });
-					} else {
-						baseTime = DateTime.fromISO(baseTimeStr);
-						if (parseTimezone) baseTime = baseTime.setZone(parseTimezone);
-					}
-
-					// Parse compare time
-					const hasCompareTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(
-						compareTimeStr,
-					);
-					let compareTime: DateTime;
-					if (compareTimezone && !hasCompareTimezone) {
-						compareTime = DateTime.fromISO(compareTimeStr, {
-							zone: compareTimezone,
-						});
-					} else {
-						compareTime = DateTime.fromISO(compareTimeStr);
-						if (compareTimezone)
-							compareTime = compareTime.setZone(compareTimezone);
-					}
+					const baseTime = parseInstant(baseTimeStr, parseTimezone);
+					const compareTime = parseInstant(compareTimeStr, compareTimezone);
 
 					if (!baseTime.isValid) {
 						throw new Error(
@@ -1275,14 +1314,7 @@ export async function handleTimeCalculator(args: unknown) {
 			const sortableItems: SortableTime[] = [];
 
 			for (const timeStr of baseTimes) {
-				const hasTimezone = /[Z]$|[+-]\d{2}:?\d{2}$/.test(timeStr);
-				let dt: DateTime;
-				if (parseTimezone && !hasTimezone) {
-					dt = DateTime.fromISO(timeStr, { zone: parseTimezone });
-				} else {
-					dt = DateTime.fromISO(timeStr);
-					if (parseTimezone) dt = dt.setZone(parseTimezone);
-				}
+				const dt = parseInstant(timeStr, parseTimezone);
 
 				if (!dt.isValid) {
 					throw new Error(
@@ -1331,6 +1363,104 @@ export async function handleTimeCalculator(args: unknown) {
 
 			result.input.base_time = validatedArgs.base_time;
 			result.result = sortResult;
+			break;
+		}
+
+		case "expand": {
+			if (!validatedArgs.recurrence) {
+				return createErrorResponse(
+					"expand",
+					"expand requires the 'recurrence' parameter (RFC 5545 RRULE or ISO 8601 repeating interval)",
+				);
+			}
+
+			let windowStart: DateTime | undefined;
+			if (validatedArgs.window_start) {
+				windowStart = parseInstant(
+					validatedArgs.window_start,
+					validatedArgs.timezone,
+				);
+				if (!windowStart.isValid) {
+					return createErrorResponse(
+						"expand",
+						`Invalid window_start: ${validatedArgs.window_start} (${windowStart.invalidReason})`,
+					);
+				}
+			}
+			let windowEnd: DateTime | undefined;
+			if (validatedArgs.window_end) {
+				windowEnd = parseInstant(
+					validatedArgs.window_end,
+					validatedArgs.timezone,
+				);
+				if (!windowEnd.isValid) {
+					return createErrorResponse(
+						"expand",
+						`Invalid window_end: ${validatedArgs.window_end} (${windowEnd.invalidReason})`,
+					);
+				}
+			}
+			if (windowStart && windowEnd && windowStart > windowEnd) {
+				return createErrorResponse(
+					"expand",
+					"window_start must not be after window_end",
+				);
+			}
+
+			// DTSTART anchor for RRULEs that carry none: base_time, else now
+			const dtstart =
+				baseTimes[0] ??
+				(validatedArgs.timezone
+					? DateTime.now().setZone(validatedArgs.timezone)
+					: DateTime.now());
+
+			const outcome = expandRecurrence({
+				recurrence: validatedArgs.recurrence,
+				dtstart,
+				windowStart,
+				windowEnd,
+				maxOccurrences: validatedArgs.max_occurrences ?? 100,
+			});
+			if (!outcome.success) {
+				return createErrorResponse("expand", outcome.error);
+			}
+
+			const { ruleType, truncated } = outcome.data;
+			// The recurrence's own zone is authoritative; the timezone
+			// parameter converts occurrences for display, as elsewhere
+			const occurrences = validatedArgs.timezone
+				? outcome.data.occurrences.map((dt) =>
+						dt.setZone(validatedArgs.timezone),
+					)
+				: outcome.data.occurrences;
+
+			const format = validatedArgs.occurrence_format ?? "iso";
+			const rendered = occurrences.map((dt) => {
+				if (format === "epoch_ms") return dt.toMillis();
+				if (format === "ixdtf") return toIXDTF(dt);
+				return dt.toISO();
+			});
+
+			const expandResult: Record<string, unknown> = {
+				rule_type: ruleType,
+				count: rendered.length,
+				truncated,
+				occurrences: rendered,
+			};
+			const first = occurrences[0];
+			const last = occurrences[occurrences.length - 1];
+			if (first && last && occurrences.length > 1) {
+				expandResult.span = {
+					earliest: first.toISO(),
+					latest: last.toISO(),
+					total_span_human: formatDuration(
+						last.toMillis() - first.toMillis(),
+					),
+				};
+			}
+
+			result.input.recurrence = validatedArgs.recurrence;
+			result.result = expandResult;
 			break;
 		}
 

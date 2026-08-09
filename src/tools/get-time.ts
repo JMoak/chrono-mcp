@@ -1,13 +1,14 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { DateTime } from "luxon";
 import { z } from "zod";
+import { parseInstant, toIXDTF } from "../utils/ixdtf.js";
 
 export const GetTimeSchema = z.object({
 	datetime: z
 		.string()
 		.optional()
 		.describe(
-			"Optional. ISO datetime string (e.g., '2024-12-25T15:00:00'). If not provided, current time is used",
+			"Optional. ISO 8601 or RFC 9557 (IXDTF) datetime string (e.g., '2024-12-25T15:00:00' or '2024-12-25T15:00:00-05:00[America/New_York]'). If not provided, current time is used",
 		),
 	timezones: z
 		.array(z.string())
@@ -19,6 +20,7 @@ export const GetTimeSchema = z.object({
 		.array(
 			z.enum([
 				"iso",
+				"ixdtf",
 				"rfc2822",
 				"sql",
 				"local",
@@ -49,8 +51,9 @@ export const getTimeTool: Tool = {
 		"Get current time or convert times across timezones with flexible formatting. Use this tool when you need to:\n" +
 		"- Check the current time in any timezone\n" +
 		"- Convert a specific datetime to multiple timezones\n" +
-		"- Format datetimes in various output styles (ISO, RFC2822, SQL, locale-aware)\n" +
+		"- Format datetimes in various output styles (ISO, RFC 9557/IXDTF, RFC2822, SQL, locale-aware)\n" +
 		"- Get UTC offsets for timezone conversions\n\n" +
+		"Accepts RFC 9557 (IXDTF) input like '2026-08-09T15:00:00-04:00[America/New_York]' — the bracketed IANA zone is authoritative and offset consistency is validated. " +
 		"Defaults to current time in system timezone when no parameters provided. Use the timezones array to convert to multiple zones simultaneously, and the formats array to get multiple output formats for the base time.",
 	inputSchema: {
 		type: "object",
@@ -58,7 +61,7 @@ export const getTimeTool: Tool = {
 			datetime: {
 				type: "string",
 				description:
-					"Optional. ISO datetime string (e.g., '2024-12-25T15:00:00'). If not provided, current time is used.",
+					"Optional. ISO 8601 or RFC 9557 (IXDTF) datetime string (e.g., '2024-12-25T15:00:00' or '2024-12-25T15:00:00-05:00[America/New_York]'). If not provided, current time is used.",
 			},
 			timezones: {
 				type: "array",
@@ -72,6 +75,7 @@ export const getTimeTool: Tool = {
 					type: "string",
 					enum: [
 						"iso",
+						"ixdtf",
 						"rfc2822",
 						"sql",
 						"local",
@@ -142,11 +146,14 @@ export async function handleGetTime(args: unknown) {
 	let baseTime: DateTime;
 	try {
 		if (validatedArgs.datetime) {
-			baseTime = DateTime.fromISO(validatedArgs.datetime);
+			baseTime = parseInstant(validatedArgs.datetime);
 			// Check if the DateTime is valid
 			if (!baseTime.isValid) {
+				const detail = baseTime.invalidExplanation
+					? `${baseTime.invalidReason}: ${baseTime.invalidExplanation}`
+					: baseTime.invalidReason;
 				throw new Error(
-					`Invalid datetime format: ${validatedArgs.datetime} - ${baseTime.invalidReason}`,
+					`Invalid datetime format: ${validatedArgs.datetime} - ${detail}`,
 				);
 			}
 		} else {
@@ -199,6 +206,9 @@ export async function handleGetTime(args: unknown) {
 				switch (format) {
 					case "iso":
 						formattedValue = baseTime.toISO() || "";
+						break;
+					case "ixdtf":
+						formattedValue = toIXDTF(baseTime);
 						break;
 					case "rfc2822":
 						formattedValue = baseTime.toRFC2822() || "";
