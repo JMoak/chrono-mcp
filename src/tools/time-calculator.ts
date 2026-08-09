@@ -7,6 +7,9 @@ import { parseInstant, toIXDTF } from "../utils/ixdtf.js";
 import { expandRecurrence } from "../utils/recurrence.js";
 
 const MAX_OPERATIONS = 10000;
+// stats emits only aggregates, so its response size is constant regardless of
+// input count — it can safely accept a 10x larger batch than per-item ops
+const MAX_AGGREGATE_OPERATIONS = 100000;
 
 interface TimeCalculatorResponse {
 	success: boolean;
@@ -68,7 +71,10 @@ function planOperations(
 	base_time: string | string[] | undefined,
 	compare_time: string | string[] | undefined,
 	interaction_mode: string,
+	operation?: string,
 ): ParseResult<OperationPlan> {
+	const maxOperations =
+		operation === "stats" ? MAX_AGGREGATE_OPERATIONS : MAX_OPERATIONS;
 	// Normalize inputs to arrays using safe parsing
 	const baseTimes = base_time ? safelyParseTimeArray(base_time) : [];
 	const compareTimes = compare_time ? safelyParseTimeArray(compare_time) : [];
@@ -144,10 +150,10 @@ function planOperations(
 	}
 
 	// Enforce maximum operations
-	if (operationCount > MAX_OPERATIONS) {
+	if (operationCount > maxOperations) {
 		return {
 			success: false,
-			error: `Operation count (${operationCount}) exceeds maximum allowed (${MAX_OPERATIONS}) for interaction mode '${actualMode}'`,
+			error: `Operation count (${operationCount}) exceeds maximum allowed (${maxOperations}) for interaction mode '${actualMode}'`,
 		};
 	}
 
@@ -556,7 +562,7 @@ export const timeCalculatorTool: Tool = {
 		"- Sort arrays of timestamps chronologically\n" +
 		"- Expand RFC 5545 RRULEs or ISO 8601 repeating intervals into concrete occurrences (expand) — DST-correct, with window bounds and explicit truncation reporting\n\n" +
 		"Datetime inputs accept RFC 9557 (IXDTF) zone annotations like '2026-08-09T15:00:00-04:00[America/New_York]'. " +
-		"Supports timezone-aware calculations and can handle up to 10,000 operations per request. Use interaction_mode to control how base_time and compare_time arrays interact.",
+		"Supports timezone-aware calculations and can handle up to 10,000 operations per request (100,000 for stats, which returns only aggregates). Use interaction_mode to control how base_time and compare_time arrays interact.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -792,6 +798,7 @@ async function handleTimeCalculatorImpl(args: unknown) {
 		validatedArgs.base_time,
 		validatedArgs.compare_time,
 		validatedArgs.interaction_mode || "auto_detect",
+		validatedArgs.operation,
 	);
 
 	if (!planResult.success) {

@@ -13,6 +13,9 @@ const reversed = [...timestamps].reverse();
 const half = N / 2;
 const pairsA = timestamps.slice(0, half);
 const pairsB = timestamps.slice(half);
+const big100k = Array.from({ length: 100_000 }, (_, i) =>
+	new Date(BASE_MS + i * 1000).toISOString(),
+);
 
 describe(`batch operations at MAX_OPERATIONS scale (${N} items)`, () => {
 	bench("stats over 10k timestamps", async () => {
@@ -39,6 +42,10 @@ describe(`batch operations at MAX_OPERATIONS scale (${N} items)`, () => {
 			base_time: pairsA,
 			compare_time: pairsB,
 		});
+	});
+
+	bench("stats over 100k timestamps (aggregate cap)", async () => {
+		await handleTimeCalculator({ operation: "stats", base_time: big100k });
 	});
 
 	bench("expand hourly rrule to 10k occurrences", async () => {

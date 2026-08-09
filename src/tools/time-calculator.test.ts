@@ -456,6 +456,48 @@ describe("handleTimeCalculator", () => {
 				/Operation count \(10003\) exceeds maximum allowed \(10000\) for subtract operation/,
 			);
 		});
+
+		it("should allow stats to exceed the per-item cap (aggregate output)", async () => {
+			const base = Date.UTC(2026, 0, 1);
+			const times = Array.from({ length: 20000 }, (_, i) =>
+				new Date(base + i * 1000).toISOString(),
+			);
+
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: times,
+			});
+
+			const parsed = parseResult(result);
+			expect(parsed.operation).toBe("stats");
+			expect(parsed.result.input_analysis.base_time_count).toBe(20000);
+		});
+
+		it("should flag stats when input exceeds the aggregate cap", async () => {
+			const largeTimes = Array(100001).fill("2024-01-01T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "stats",
+				base_time: largeTimes,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(100001\) exceeds maximum allowed \(100000\)/,
+			);
+		});
+
+		it("should keep sort capped at the per-item limit", async () => {
+			const largeTimes = Array(10001).fill("2024-01-01T00:00:00Z");
+
+			const result = await handleTimeCalculator({
+				operation: "sort",
+				base_time: largeTimes,
+			});
+
+			expect(result.content[0]?.text).toMatch(
+				/Operation count \(10001\) exceeds maximum allowed \(10000\)/,
+			);
+		});
 	});
 
 	describe("timezone handling", () => {

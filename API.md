@@ -643,7 +643,7 @@ All operations return structured error responses:
 | `No duration specified` | add/subtract without duration values | Add at least one duration parameter |
 | `compare_time is required` | diff/duration_between without compare_time | Provide compare_time parameter |
 | `Invalid base_time format` | Malformed ISO datetime | Use proper ISO 8601 format |
-| `Operation count exceeds maximum` | Arrays too large (limit: 10000) | Reduce batch size |
+| `Operation count exceeds maximum` | Arrays too large (limit: 10,000; 100,000 for stats) | Reduce batch size |
 | `stats operation requires at least 2 timestamps` | Single timestamp provided to stats | Provide array with 2+ timestamps |
 
 ---
@@ -687,8 +687,11 @@ Result: 5 hours difference (NY 9am = London 2pm)
 ### Maximum Operations
 
 - **Batch operations**: Maximum 10,000 calculations per request
+- **`stats`**: Maximum 100,000 timestamps per request — stats returns only aggregates, so its response size stays constant regardless of input count (benchmarked at ~460ms for the full 100k)
 - **Array inputs**: Each timestamp in an array counts toward the limit
 - **Cross product**: Multiplies base_time count by compare_time count
+
+All caps are benchmark-backed (`npm run bench`): every per-item operation at the 10,000-item cap completes in under 100ms.
 
 ### Performance Tips
 

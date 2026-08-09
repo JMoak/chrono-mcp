@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vibrissa protocol contract suites for envelope, IXDTF, expand, and isolation behavior
 - Vibrissa protocol contracts for core operations (add, diff, duration_between, pairwise batching) including DST wall-clock preservation
 - `npm run bench`: Vitest benchmark suite proving every batch operation at the `MAX_OPERATIONS` cap (10,000 items) completes in under 100ms
+- `stats` batch cap raised to 100,000 timestamps — aggregate-only output keeps response size constant, and the benchmark shows ~460ms at the full cap; per-item operations keep the 10,000 limit
 
 ### Fixed
 - HTTP transport now creates one Server/transport pair per MCP session (GHSA-345p-7cg4-v4c7 cross-client leak); sessions tracked by cryptographically random ids with lifecycle cleanup
