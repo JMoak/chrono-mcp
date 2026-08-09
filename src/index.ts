@@ -15,7 +15,7 @@ import { SessionClock } from "./utils/envelope.js";
 
 export default function createServer(_opts: { config?: unknown } = {}) {
 	const server = new Server(
-		{ name: "chrono-mcp", version: "0.4.2" },
+		{ name: "chrono-mcp", version: "0.5.0" },
 		{ capabilities: { tools: {} } },
 	);
 

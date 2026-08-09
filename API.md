@@ -12,6 +12,9 @@ Complete reference for the chrono-mcp MCP server tools and their parameters.
   - [duration_between](#operation-duration_between)
   - [stats](#operation-stats)
   - [sort](#operation-sort)
+  - [expand](#operation-expand)
+- [RFC 9557 (IXDTF) Support](#rfc-9557-ixdtf-support)
+- [Temporal Context Envelope](#temporal-context-envelope)
 
 ---
 
@@ -27,9 +30,9 @@ Retrieves the current time or converts a specified datetime to multiple timezone
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `datetime` | string | No | Current time | ISO datetime string (e.g., '2024-12-25T15:00:00') |
+| `datetime` | string | No | Current time | ISO 8601 or RFC 9557 (IXDTF) datetime string (e.g., '2024-12-25T15:00:00' or '2024-12-25T15:00:00-05:00[America/New_York]') |
 | `timezones` | string[] | No | - | List of IANA timezone names (e.g., ['America/New_York', 'Asia/Tokyo']) |
-| `formats` | string[] | No | - | Output formats: `iso`, `rfc2822`, `sql`, `local`, `localeString`, `short`, `medium`, `long`, `full` |
+| `formats` | string[] | No | - | Output formats: `iso`, `ixdtf`, `rfc2822`, `sql`, `local`, `localeString`, `short`, `medium`, `long`, `full` |
 | `locale` | string | No | System locale | Locale for formatting (e.g., 'en-US', 'fr-FR', 'ja-JP') |
 | `includeOffsets` | boolean | No | false | Include UTC offsets (+09:00, -04:00) in output |
 
@@ -38,6 +41,7 @@ Retrieves the current time or converts a specified datetime to multiple timezone
 | Format | Description | Example Output |
 |--------|-------------|----------------|
 | `iso` | ISO 8601 format | `2024-12-25T15:00:00.000-05:00` |
+| `ixdtf` | RFC 9557 (IXDTF) format | `2024-12-25T15:00:00.000-05:00[America/New_York]` |
 | `rfc2822` | RFC 2822 format | `Wed, 25 Dec 2024 15:00:00 -0500` |
 | `sql` | SQL datetime format | `2024-12-25 15:00:00.000 -05:00` |
 | `local` | Local string representation | `Dec 25, 2024, 3:00:00 PM` |
@@ -471,6 +475,108 @@ Sort an array of timestamps chronologically.
   }
 }
 ```
+
+---
+
+### Operation: expand
+
+Expands a recurrence expression into concrete occurrence instants. Accepts two grammars:
+
+- **RFC 5545 RRULE** — the recurrence format stored by Google Calendar, Outlook, and Apple Calendar. Provide a full iCalendar snippet (`DTSTART;TZID=...` + `RRULE:...`), a lone `RRULE:` line, or a bare rule part (`FREQ=WEEKLY;BYDAY=TU`); rules without a `DTSTART` are anchored by `base_time` (or the current time).
+- **ISO 8601 repeating interval** — `R[n]/<start>/<duration>`, e.g. `R5/2026-03-01T14:00:00Z/P1D`. `R` without a count repeats without bound. Start instants accept RFC 9557 (IXDTF) zone annotations, making DST-safe repeating intervals expressible: `R12/2026-01-05T09:00:00[America/New_York]/P1W`.
+
+Expansion is DST-correct: a `09:00` New York weekly rule stays `09:00` wall-clock across daylight-saving transitions.
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `recurrence` | string | Yes | - | RRULE or ISO 8601 repeating interval |
+| `base_time` | string | No | Current time | DTSTART anchor for RRULEs that carry none |
+| `window_start` | string | No | - | Inclusive lower bound; earlier occurrences are skipped |
+| `window_end` | string | No | - | Inclusive upper bound; expansion stops beyond it |
+| `max_occurrences` | number | No | 100 | Cap on returned occurrences (max 10,000) |
+| `occurrence_format` | string | No | `iso` | `iso`, `ixdtf`, or `epoch_ms` |
+| `timezone` | string | No | - | Converts occurrences for display (the rule's own zone governs the math) |
+
+#### Example
+
+Request:
+```json
+{
+  "operation": "expand",
+  "recurrence": "FREQ=WEEKLY;BYDAY=TU;COUNT=4",
+  "base_time": "2026-02-24T09:00:00[America/New_York]",
+  "occurrence_format": "ixdtf"
+}
+```
+
+Response (result excerpt):
+```json
+{
+  "rule_type": "rrule",
+  "count": 4,
+  "truncated": false,
+  "occurrences": [
+    "2026-02-24T09:00:00.000-05:00[America/New_York]",
+    "2026-03-03T09:00:00.000-05:00[America/New_York]",
+    "2026-03-10T09:00:00.000-04:00[America/New_York]",
+    "2026-03-17T09:00:00.000-04:00[America/New_York]"
+  ],
+  "span": {
+    "earliest": "2026-02-24T09:00:00.000-05:00",
+    "latest": "2026-03-17T09:00:00.000-04:00",
+    "total_span_human": "21 days"
+  }
+}
+```
+
+`truncated: true` signals that more occurrences exist beyond `max_occurrences` — expansion never silently drops data. Unbounded rules without a `window_end` are capped and flagged.
+
+---
+
+## Batch Error Isolation
+
+Array operations (`stats`, `sort`, and paired duration analysis) skip unparseable entries instead of failing the whole batch. Skipped items are reported explicitly:
+
+- `stats` → `input_analysis.invalid_count` and `input_analysis.invalid_inputs_sample` (first 5, with parse reasons)
+- `sort` → `invalid_count` and `invalid_inputs_sample` alongside the sorted output
+- Operations only error when too few valid items remain to compute a meaningful result (e.g. fewer than 2 valid timestamps for `stats`), and the error names the invalid inputs.
+
+---
+
+## RFC 9557 (IXDTF) Support
+
+Every datetime parameter accepts the Internet Extended Date/Time Format (RFC 9557) — an RFC 3339 timestamp followed by a bracketed IANA time zone annotation. This is the serialization format of the JS Temporal API.
+
+```text
+2026-08-09T15:00:00-04:00[America/New_York]   offset + zone (offset is validated)
+2026-08-09T19:00:00Z[America/New_York]        UTC instant projected into the zone
+2026-08-09T15:00:00[Europe/Paris]             wall-clock time in the zone
+2026-08-09T15:00:00+05:30[+05:30]             offset-form annotation
+```
+
+Consistency semantics (Temporal-compatible):
+
+- A numeric offset that disagrees with the annotated zone's offset at that instant is **rejected** as inconsistent — never silently reinterpreted.
+- `Z` plus a zone annotation is valid: the UTC instant is projected into the zone.
+- Critical annotations (`[!...]`) that the server cannot honor are rejected per RFC 9557; unknown non-critical annotations are ignored.
+- The bracketed zone is authoritative for interpreting the timestamp; a `timezone` parameter then converts the result for display.
+
+Use the `ixdtf` format (GET TIME `formats`, expand `occurrence_format`) to emit IXDTF strings.
+
+---
+
+## Temporal Context Envelope
+
+Every tool response carries a trailing text block — a single compact line giving the calling agent passive time-awareness:
+
+```text
+⏱ now 2026-08-09T15:02:11.123-04:00 (Sun) · first call this session · tzdb 2025b
+⏱ now 2026-08-09T15:49:03.456-04:00 (Sun) · +46m52s since last call · session 47m1s · call #2
+```
+
+The first call also stamps the IANA tzdb version the server is running (auditability: which tzdata answered this session). Elapsed times are measured per MCP session — over HTTP, each client session has its own clock. Disable with `CHRONO_ENVELOPE=off`.
 
 ---
 

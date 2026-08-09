@@ -1,0 +1,17 @@
+{
+  "name": "stats isolates invalid batch entries",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "stats",
+    "base_time": ["2026-01-01T00:00:00Z", "not-a-timestamp", "2026-01-02T00:00:00Z", "2026-01-03T00:00:00Z"]
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"invalid_count\": 1[\\s\\S]*not-a-timestamp[\\s\\S]*\"timestamp_analysis\"" }
+      }
+    ]
+  }
+}

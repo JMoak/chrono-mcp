@@ -1006,3 +1006,93 @@ describe("handleTimeCalculator", () => {
 		});
 	});
 });
+
+describe("batch error isolation", () => {
+	it("stats skips invalid timestamps and reports them instead of failing", async () => {
+		const result = await handleTimeCalculator({
+			operation: "stats",
+			base_time: [
+				"2024-01-01T00:00:00Z",
+				"not-a-date",
+				"2024-01-02T00:00:00Z",
+				"2024-01-03T00:00:00Z",
+			],
+		});
+		const parsed = parseResult(result);
+		expect(parsed.result.input_analysis.base_time_count).toBe(4);
+		expect(parsed.result.input_analysis.invalid_count).toBe(1);
+		expect(parsed.result.input_analysis.invalid_inputs_sample[0]).toContain(
+			"not-a-date",
+		);
+		expect(parsed.result.timestamp_analysis).toBeDefined();
+		expect(Date.parse(parsed.result.timestamp_analysis.earliest)).toBe(
+			Date.parse("2024-01-01T00:00:00Z"),
+		);
+	});
+
+	it("stats errors cleanly when fewer than 2 valid timestamps remain", async () => {
+		const result = await handleTimeCalculator({
+			operation: "stats",
+			base_time: ["garbage", "2024-01-01T00:00:00Z"],
+		});
+		const parsed = parseResult(result);
+		expect(parsed.success).toBe(false);
+		expect(parsed.error).toContain("at least 2 valid");
+	});
+
+	it("stats duration mode skips invalid pairs and keeps the rest", async () => {
+		const result = await handleTimeCalculator({
+			operation: "stats",
+			base_time: [
+				"2024-01-01T00:00:00Z",
+				"2024-01-02T00:00:00Z",
+				"2024-01-03T00:00:00Z",
+			],
+			compare_time: [
+				"2024-01-01T01:00:00Z",
+				"broken",
+				"2024-01-03T01:00:00Z",
+			],
+		});
+		const parsed = parseResult(result);
+		expect(parsed.result.duration_analysis.pair_count).toBe(2);
+		expect(parsed.result.input_analysis.invalid_count).toBe(1);
+		expect(parsed.result.input_analysis.invalid_inputs_sample[0]).toContain(
+			"index 1",
+		);
+	});
+
+	it("sort skips invalid entries and reports them", async () => {
+		const result = await handleTimeCalculator({
+			operation: "sort",
+			base_time: [
+				"2024-06-01T00:00:00Z",
+				"nonsense",
+				"2024-01-01T00:00:00Z",
+			],
+		});
+		const parsed = parseResult(result);
+		expect(parsed.result.sorted_iso_format).toHaveLength(2);
+		expect(parsed.result.invalid_count).toBe(1);
+		expect(parsed.result.invalid_inputs_sample[0]).toContain("nonsense");
+	});
+
+	it("sort errors cleanly when no valid timestamps remain", async () => {
+		const result = await handleTimeCalculator({
+			operation: "sort",
+			base_time: ["abc", "def"],
+		});
+		const parsed = parseResult(result);
+		expect(parsed.success).toBe(false);
+		expect(parsed.error).toContain("No valid timestamps");
+	});
+
+	it("surfaces operational throws as tool error responses, not exceptions", async () => {
+		const result = await handleTimeCalculator({
+			operation: "stats",
+		});
+		const parsed = parseResult(result);
+		expect(parsed.success).toBe(false);
+		expect(parsed.error).toContain("requires base_time");
+	});
+});

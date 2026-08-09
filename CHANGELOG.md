@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-09
+
 ### Added
+- RFC 9557 (IXDTF) support: all datetime inputs accept bracketed IANA zone annotations with Temporal-compatible offset-consistency validation; new `ixdtf` output format
+- `expand` operation: RFC 5545 RRULE and ISO 8601 repeating-interval expansion via rrule-temporal — DST-correct, window-bounded, with explicit truncation reporting
+- Temporal context envelope: every tool response carries current time, weekday, elapsed-since-last-call, session age, and (first call) the tzdb version; disable with `CHRONO_ENVELOPE=off`
+- Batch error isolation: `stats` and `sort` skip and report invalid entries (`invalid_count`, `invalid_inputs_sample`) instead of failing the batch
+- Vibrissa protocol contract suites for envelope, IXDTF, expand, and isolation behavior
+
+### Fixed
+- HTTP transport now creates one Server/transport pair per MCP session (GHSA-345p-7cg4-v4c7 cross-client leak); sessions tracked by cryptographically random ids with lifecycle cleanup
+- Operational failures surface as tool error responses instead of protocol-level exceptions
+
+### Changed
+- `@modelcontextprotocol/sdk` upgraded 1.18 → 1.30 (clears all audit advisories)
+
+### Earlier unreleased items
 - Enhanced documentation with examples directory
 - CONTRIBUTING.md guidelines for contributors
 - SECURITY.md security policy

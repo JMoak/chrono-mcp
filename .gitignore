@@ -1,5 +1,24 @@
+# Build output
 node_modules/
 dist/
-.DS_Store
-*.log
+*.tsbuildinfo
 
+# Test output
+coverage/
+
+# Machine-local tool settings
+.claude/settings.local.json
+
+# Secrets
+.env
+.env.*
+
+# Packaging
+*.tgz
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

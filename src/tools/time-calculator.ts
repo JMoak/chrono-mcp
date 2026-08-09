@@ -300,6 +300,8 @@ interface StatsResult {
 	input_analysis: {
 		base_time_count: number;
 		compare_time_count: number;
+		invalid_count?: number;
+		invalid_inputs_sample?: string[];
 	};
 	timestamp_analysis?: {
 		earliest: string;
@@ -754,6 +756,25 @@ export const timeCalculatorTool: Tool = {
 };
 
 export async function handleTimeCalculator(args: unknown) {
+	// Operational failures (invalid batch inputs, empty expansions, etc.)
+	// surface as tool error responses, never as protocol-level exceptions
+	try {
+		return await handleTimeCalculatorImpl(args);
+	} catch (error) {
+		const operation =
+			typeof args === "object" &&
+			args !== null &&
+			typeof (args as { operation?: unknown }).operation === "string"
+				? (args as { operation: string }).operation
+				: "unknown";
+		return createErrorResponse(
+			operation,
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+}
+
+async function handleTimeCalculatorImpl(args: unknown) {
 	// Validate and parse arguments with Zod
 	const parseResult = TimeCalculatorSchema.safeParse(args);
 
@@ -779,13 +800,18 @@ export async function handleTimeCalculator(args: unknown) {
 
 	const plan = planResult.data;
 
-	// Parse base times using utility function
+	// Parse base times using utility function. Operations with their own
+	// per-item isolation (stats, sort, expand) re-parse and skip invalid
+	// entries themselves, so the up-front parse must not hard-fail for them.
 	const isPairwise = plan.interaction_mode === "pairwise";
+	const handlesInvalidItself = ["stats", "sort", "expand"].includes(
+		validatedArgs.operation,
+	);
 	const baseTimesResult = parseTimestamps(
 		validatedArgs.base_time,
 		validatedArgs.timezone,
 		"base_time",
-		isPairwise,
+		isPairwise || handlesInvalidItself,
 	);
 
 	// For non-pairwise operations, fail if any timestamps are invalid
@@ -1119,25 +1145,38 @@ export async function handleTimeCalculator(args: unknown) {
 			const baseTimestamps: number[] = [];
 			const parseTimezone = validatedArgs.timezone;
 
+			// Per-item isolation: skip invalid entries and report them rather
+			// than failing the whole batch on one bad timestamp
+			const invalidBaseInputs: string[] = [];
 			for (const timeStr of baseTimes) {
 				const dt = parseInstant(timeStr, parseTimezone);
 				if (!dt.isValid) {
-					throw new Error(`Invalid time format in base_time: ${timeStr}`);
+					invalidBaseInputs.push(`${timeStr} (${dt.invalidReason})`);
+					continue;
 				}
 				baseTimestamps.push(dt.toMillis());
 			}
-
 			const stats: StatsResult = {
 				input_analysis: {
 					base_time_count: baseTimes.length,
 					compare_time_count: compareTimes?.length || 0,
 				},
 			};
+			if (invalidBaseInputs.length > 0) {
+				stats.input_analysis.invalid_count = invalidBaseInputs.length;
+				stats.input_analysis.invalid_inputs_sample = invalidBaseInputs.slice(
+					0,
+					5,
+				);
+			}
 
 			// If only base_time is provided, analyze the timestamps themselves
 			if (!compareTimes || compareTimes.length === 0) {
-				if (baseTimestamps.length === 0) {
-					throw new Error("No valid timestamps found in base_time");
+				if (baseTimestamps.length < 2) {
+					throw new Error(
+						`stats requires at least 2 valid timestamps; got ${baseTimestamps.length} valid, ` +
+							`${invalidBaseInputs.length} invalid (${invalidBaseInputs.slice(0, 5).join("; ")})`,
+					);
 				}
 
 				const sorted = [...baseTimestamps].sort((a, b) => a - b);
@@ -1212,6 +1251,9 @@ export async function handleTimeCalculator(args: unknown) {
 				const compareTimezone =
 					validatedArgs.compare_time_timezone || validatedArgs.timezone;
 
+				// Per-pair isolation: a pair with an unparseable side is skipped
+				// and reported, not fatal to the batch
+				const skippedPairs: string[] = [];
 				for (let i = 0; i < minLength; i++) {
 					const baseTimeStr = baseTimes[i];
 					const compareTimeStr = compareTimes[i];
@@ -1223,15 +1265,12 @@ export async function handleTimeCalculator(args: unknown) {
 					const baseTime = parseInstant(baseTimeStr, parseTimezone);
 					const compareTime = parseInstant(compareTimeStr, compareTimezone);
 
-					if (!baseTime.isValid) {
-						throw new Error(
-							`Invalid base_time format at index ${i}: ${baseTimeStr}`,
-						);
-					}
-					if (!compareTime.isValid) {
-						throw new Error(
-							`Invalid compare_time format at index ${i}: ${compareTimeStr}`,
-						);
+					if (!baseTime.isValid || !compareTime.isValid) {
+						const bad = !baseTime.isValid
+							? `base_time "${baseTimeStr}" (${baseTime.invalidReason})`
+							: `compare_time "${compareTimeStr}" (${compareTime.invalidReason})`;
+						skippedPairs.push(`index ${i}: ${bad}`);
+						continue;
 					}
 
 					// Normalize both times to UTC to ensure consistent calculations regardless of timezone
@@ -1243,7 +1282,16 @@ export async function handleTimeCalculator(args: unknown) {
 
 				// Calculate duration statistics
 				if (durations.length === 0) {
-					throw new Error("No valid duration pairs found");
+					throw new Error(
+						`No valid duration pairs found (${skippedPairs.length} skipped: ${skippedPairs.slice(0, 5).join("; ")})`,
+					);
+				}
+				if (skippedPairs.length > 0) {
+					stats.input_analysis.invalid_count = skippedPairs.length;
+					stats.input_analysis.invalid_inputs_sample = skippedPairs.slice(
+						0,
+						5,
+					);
 				}
 
 				const sortedDurations = [...durations].sort((a, b) => a - b);
@@ -1270,7 +1318,7 @@ export async function handleTimeCalculator(args: unknown) {
 				const stdDevDuration = Math.sqrt(varianceDuration);
 
 				stats.duration_analysis = {
-					pair_count: minLength,
+					pair_count: durations.length,
 					min_duration_ms: minDuration,
 					min_duration_human: formatDuration(minDuration),
 					max_duration_ms: maxDuration,
@@ -1313,13 +1361,14 @@ export async function handleTimeCalculator(args: unknown) {
 
 			const sortableItems: SortableTime[] = [];
 
+			// Per-item isolation: unparseable entries are skipped and reported
+			const skippedInputs: string[] = [];
 			for (const timeStr of baseTimes) {
 				const dt = parseInstant(timeStr, parseTimezone);
 
 				if (!dt.isValid) {
-					throw new Error(
-						`Invalid time format in base_time: ${timeStr} - ${dt.invalidReason}`,
-					);
+					skippedInputs.push(`${timeStr} (${dt.invalidReason})`);
+					continue;
 				}
 
 				sortableItems.push({
@@ -1331,6 +1380,12 @@ export async function handleTimeCalculator(args: unknown) {
 
 			// Sort by timestamp (chronological order)
 			sortableItems.sort((a, b) => a.timestamp - b.timestamp);
+
+			if (sortableItems.length === 0) {
+				throw new Error(
+					`No valid timestamps to sort (${skippedInputs.length} invalid: ${skippedInputs.slice(0, 5).join("; ")})`,
+				);
+			}
 
 			// Extract sorted results
 			const sortedOriginal = sortableItems.map((item) => item.original);
@@ -1347,7 +1402,7 @@ export async function handleTimeCalculator(args: unknown) {
 
 			const totalSpan = latest.timestamp - earliest.timestamp;
 
-			const sortResult = {
+			const sortResult: Record<string, unknown> = {
 				input_count: baseTimes.length,
 				sorted_original_format: sortedOriginal,
 				sorted_iso_format: sortedISO,
@@ -1360,6 +1415,10 @@ export async function handleTimeCalculator(args: unknown) {
 					timezone_used: parseTimezone || "system",
 				},
 			};
+			if (skippedInputs.length > 0) {
+				sortResult.invalid_count = skippedInputs.length;
+				sortResult.invalid_inputs_sample = skippedInputs.slice(0, 5);
+			}
 
 			result.input.base_time = validatedArgs.base_time;
 			result.result = sortResult;
@@ -1408,8 +1467,15 @@ export async function handleTimeCalculator(args: unknown) {
 			}
 
 			// DTSTART anchor for RRULEs that carry none: base_time, else now
+			const anchorCandidate = baseTimes[0];
+			if (anchorCandidate && !anchorCandidate.isValid) {
+				return createErrorResponse(
+					"expand",
+					`Invalid base_time anchor (${anchorCandidate.invalidReason})`,
+				);
+			}
 			const dtstart =
-				baseTimes[0] ??
+				anchorCandidate ??
 				(validatedArgs.timezone
 					? DateTime.now().setZone(validatedArgs.timezone)
 					: DateTime.now());

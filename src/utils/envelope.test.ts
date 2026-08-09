@@ -48,8 +48,8 @@ describe("SessionClock", () => {
 		const clock = new SessionClock(
 			fakeClock("2026-08-09T15:02:11.123", "2026-08-09T15:02:11.123"),
 		);
-		expect(clock.stamp()).toBe(
-			"⏱ now 2026-08-09T15:02:11.123-04:00 (Sun) · first call this session",
+		expect(clock.stamp()).toMatch(
+			/^⏱ now 2026-08-09T15:02:11\.123-04:00 \(Sun\) · first call this session( · tzdb \S+)?$/,
 		);
 	});
 

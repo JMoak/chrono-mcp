@@ -93,7 +93,12 @@ export class SessionClock {
 		const head = `⏱ now ${t.toISO()} (${t.toFormat("ccc")})`;
 		let tail: string;
 		if (this.lastCallAtMs === null) {
-			tail = "first call this session";
+			// tzdb version on the first call only: auditability (which tzdata
+			// answered this session) at a one-time token cost
+			const tzdb = (process.versions as Record<string, string | undefined>).tz;
+			tail = tzdb
+				? `first call this session · tzdb ${tzdb}`
+				: "first call this session";
 		} else {
 			const sinceLast = formatCompactDuration(nowMs - this.lastCallAtMs);
 			const sessionAge = formatCompactDuration(nowMs - this.startedAtMs);
