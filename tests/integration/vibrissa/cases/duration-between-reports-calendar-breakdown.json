@@ -1,0 +1,18 @@
+{
+  "name": "duration between reports calendar breakdown",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "duration_between",
+    "base_time": "2024-01-15T00:00:00Z",
+    "compare_time": "2026-03-20T06:30:00Z"
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"years\": 2[\\s\\S]*\"months\": 2[\\s\\S]*\"days\": 5[\\s\\S]*\"hours\": 6[\\s\\S]*\"minutes\": 30[\\s\\S]*\"human_readable\"" }
+      }
+    ]
+  }
+}

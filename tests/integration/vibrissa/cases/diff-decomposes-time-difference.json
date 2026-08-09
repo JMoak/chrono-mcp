@@ -1,0 +1,18 @@
+{
+  "name": "diff decomposes time difference",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "diff",
+    "base_time": "2024-01-01T00:00:00Z",
+    "compare_time": "2024-01-02T03:04:05Z"
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"days\": 1[\\s\\S]*\"hours\": 3[\\s\\S]*\"minutes\": 4[\\s\\S]*\"seconds\": 5[\\s\\S]*\"total_milliseconds\": 97445000" }
+      }
+    ]
+  }
+}

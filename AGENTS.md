@@ -12,6 +12,8 @@ This file provides guidance to AI coding agents working with code in this reposi
 - `npm run lint:fix` - Auto-fix linting issues with Biome
 
 **Testing and Debugging:**
+- `npm test` - Vitest unit tests; `npm run test:mcp` - vibrissa protocol contracts (build first)
+- `npm run bench` - Vitest benchmarks for batch operations at the MAX_OPERATIONS cap (10k items)
 - `npm run inspector` - Start MCP Inspector at http://localhost:6274 for interactive testing
 - `node dist/index.js` - Run the MCP server directly (requires build first)
 

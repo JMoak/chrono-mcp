@@ -233,7 +233,12 @@ npm run test:mcp
 npm run inspector
 ```
 
+```bash
+npm run bench
+```
+
 - `npm test` — Vitest **unit** tests for tool handlers
+- `npm run bench` — Vitest benchmarks proving every batch operation at the `MAX_OPERATIONS` cap (10,000 items) completes in well under 100ms
 - `npm run test:mcp` — Vibrissa (npm: [`@jmoak/vibrissa`](https://www.npmjs.com/package/@jmoak/vibrissa)) **MCP protocol** cases (requires `npm run build` first; no Python)
 - Protocol contracts live in `tests/contracts/*.tdd` and emit to `tests/integration/vibrissa/cases/` via tdd-dsl locally (`npm run contracts:emit` if `tdd-dsl` is on your PATH). CI runs only the committed JSON with `vib run`.
 

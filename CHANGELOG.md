@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Temporal context envelope: every tool response carries current time, weekday, elapsed-since-last-call, session age, and (first call) the tzdb version; disable with `CHRONO_ENVELOPE=off`
 - Batch error isolation: `stats` and `sort` skip and report invalid entries (`invalid_count`, `invalid_inputs_sample`) instead of failing the batch
 - Vibrissa protocol contract suites for envelope, IXDTF, expand, and isolation behavior
+- Vibrissa protocol contracts for core operations (add, diff, duration_between, pairwise batching) including DST wall-clock preservation
+- `npm run bench`: Vitest benchmark suite proving every batch operation at the `MAX_OPERATIONS` cap (10,000 items) completes in under 100ms
 
 ### Fixed
 - HTTP transport now creates one Server/transport pair per MCP session (GHSA-345p-7cg4-v4c7 cross-client leak); sessions tracked by cryptographically random ids with lifecycle cleanup

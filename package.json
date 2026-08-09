@@ -49,9 +49,10 @@
 		"test": "vitest run",
 		"test:ui": "vitest run --ui",
 		"test:coverage": "vitest run --coverage",
+		"bench": "vitest bench --run",
 		"start:http": "node -e \"process.env.MCP_TRANSPORT='http'; process.env.PORT='8000'; require('./dist/cli.js')\"",
 		"test:mcp": "vib-test run",
-		"contracts:emit": "tdd-dsl emit --target vibrissa --out-dir tests/integration/vibrissa/cases tests/contracts/get-time.tdd tests/contracts/envelope.tdd tests/contracts/ixdtf.tdd tests/contracts/expand.tdd tests/contracts/isolation.tdd"
+		"contracts:emit": "tdd-dsl emit --target vibrissa --out-dir tests/integration/vibrissa/cases tests/contracts/get-time.tdd tests/contracts/envelope.tdd tests/contracts/ixdtf.tdd tests/contracts/expand.tdd tests/contracts/isolation.tdd tests/contracts/core-ops.tdd"
 	},
 	"engines": {
 		"node": ">=22.0.0"

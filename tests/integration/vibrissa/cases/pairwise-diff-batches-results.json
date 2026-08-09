@@ -1,0 +1,19 @@
+{
+  "name": "pairwise diff batches results",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "diff",
+    "interaction_mode": "pairwise",
+    "base_time": ["2024-01-01T00:00:00Z", "2024-06-01T00:00:00Z"],
+    "compare_time": ["2024-01-02T00:00:00Z", "2024-06-03T00:00:00Z"]
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"count\": 2[\\s\\S]*\"total_milliseconds\": 86400000[\\s\\S]*\"total_milliseconds\": 172800000[\\s\\S]*\"interaction_mode\": \"pairwise\"" }
+      }
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "adds duration to utc datetime",
+  "tool": "TIME CALCULATOR",
+  "args": {
+    "operation": "add",
+    "base_time": "2024-12-25T10:00:00Z",
+    "timezone": "UTC",
+    "days": 5,
+    "hours": 3
+  },
+  "expect": {
+    "$partial": true,
+    "content": [
+      {
+        "type": "text",
+        "text": { "$regex": "\"result\": \"2024-12-30T13:00:00\\.000Z\"[\\s\\S]*\"result_timezone\": \"UTC\"" }
+      }
+    ]
+  }
+}
