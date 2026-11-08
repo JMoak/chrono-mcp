@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
 	CallToolRequestSchema,
@@ -13,9 +14,13 @@ import {
 import { configManager } from "./utils/config.js";
 import { SessionClock } from "./utils/envelope.js";
 
+const { version } = createRequire(import.meta.url)("../package.json") as {
+	version: string;
+};
+
 export default function createServer(_opts: { config?: unknown } = {}) {
 	const server = new Server(
-		{ name: "chrono-mcp", version: "0.5.0" },
+		{ name: "chrono-mcp", version },
 		{ capabilities: { tools: {} } },
 	);
 

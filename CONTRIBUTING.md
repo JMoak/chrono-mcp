@@ -192,18 +192,54 @@ test: add tests for DST transitions
 
 ## Release Process
 
-Releases are automated via GitHub Actions when commits are merged to main:
+Every push to `main`, including a PR merge or a direct commit, runs CI and then
+semantic-release. Pull requests run the same checks without publishing.
 
-- `feat:` commits trigger a minor version bump
-- `fix:` commits trigger a patch version bump
-- `feat!:` or commits with `BREAKING CHANGE` trigger a major version bump
+semantic-release examines **all commits since the last release tag**, not just the
+merge commit's subject. The highest applicable bump wins:
 
-The CI pipeline will:
-1. Run tests and linting
-2. Build the project
-3. Bump the version
-4. Publish to npm
-5. Create a git tag
+- `feat:` / `feat(scope):` → minor
+- `fix:` / `perf:` (with optional scopes) → patch
+- Any conventional commit with `!`, or a `BREAKING CHANGE:` footer → major
+- Only `docs:`, `test:`, `chore:`, or other non-release commits → no release
+
+Use a conventional PR title when squash-merging: the squash commit is the history
+that the release job sees. For a regular merge or rebase, the individual commits
+remain available for analysis.
+
+After lint, unit tests, build, MCP protocol tests, and a package dry run pass, the
+release job publishes `@jmoak/chrono-mcp` to npm's `latest` tag and creates a `vX.Y.Z`
+Git tag and GitHub release with generated notes. Release jobs are serialized.
+The existing `v0.4.2` tag anchors the first release under this pipeline, including
+the accumulated unreleased features.
+
+The package version is assigned in the release workspace; `prepack` builds the
+package after that version is assigned. The MCP server reads the package version,
+so its handshake matches the installed release. No version-bump commit is pushed
+back to `main`: the manifest in source is a baseline, while npm and release tags
+are the published-version record. Do not manually bump it to trigger a release.
+
+### npm authentication (one-time package-owner setup)
+
+In the npm settings for `@jmoak/chrono-mcp`, configure a GitHub Actions trusted
+publisher with these exact values:
+
+- Organization or user: `JMoak`
+- Repository: `chrono-mcp`
+- Workflow filename: `ci-cd.yml`
+- Environment: leave empty
+- Allowed actions: enable **`npm publish`** (stage-only access does not permit
+  this automatic release workflow)
+
+The job has `id-token: write` and uses OIDC; it does not consume `NPM_TOKEN` or
+require a maintainer to approve each package. A new trusted publisher must make
+its first successful publish within two days. See the
+[npm trusted-publishing guide](https://docs.npmjs.com/trusted-publishers/).
+
+The workflow also supports **Run workflow** on `main` to retry after an
+authentication/configuration repair. It still runs CI and releases only when
+unreleased conventional commits warrant a version. A rerun with no new release
+commits does not create another version.
 
 ## Questions?
 
