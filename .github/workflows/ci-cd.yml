@@ -11,16 +11,25 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    runs-on: ubuntu-latest
+  verify:
+    name: Verify (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['22', '24', '26']
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - name: Install dependencies
@@ -41,6 +50,18 @@ jobs:
       - name: Check package contents
         run: npm pack --dry-run
 
+  # Keep one stable required status as the runtime/platform matrix evolves.
+  ci:
+    if: always()
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every verification job
+        env:
+          RESULT: ${{ needs.verify.result }}
+        run: test "$RESULT" = success
+
   publish:
     needs: ci
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -53,13 +74,13 @@ jobs:
       id-token: write
     steps:
       - name: Checkout release commit and tags
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
           # Let semantic-release manage npm auth; registry-url creates token auth.

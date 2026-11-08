@@ -192,6 +192,9 @@ test: add tests for DST transitions
 
 ## Release Process
 
+See [dependency maintenance](.github/DEPENDENCIES.md) for update grouping,
+compatibility checks, and the review policy for dependency PRs.
+
 Every push to `main`, including a PR merge or a direct commit, runs CI and then
 semantic-release. Pull requests run the same checks without publishing.
 

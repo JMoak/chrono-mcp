@@ -1,6 +1,8 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
-	"files": { "includes": ["**/*", "!dist"] },
+	"$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
+	"files": {
+		"includes": ["**/*", "!dist"]
+	},
 	"formatter": {
 		"enabled": true
 	},
@@ -10,5 +12,11 @@
 			"preset": "recommended"
 		}
 	},
-	"assist": { "actions": { "source": { "organizeImports": "on" } } }
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	}
 }
